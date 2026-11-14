@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "job_id": 1,
+    "valor": 750.0,
+    "moeda": "BRL",
+    "status": "pendente"
+  },
+  {
+    "id": 2,
+    "job_id": 2,
+    "valor": 2200.0,
+    "moeda": "BRL",
+    "status": "concluido"
+  }
+]

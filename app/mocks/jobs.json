@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "titulo": "Desenvolvimento de landing page",
+    "descricao": "Criar uma landing page responsiva para um produto digital.",
+    "orcamento": 1500.0,
+    "status": "aberta"
+  },
+  {
+    "id": 2,
+    "titulo": "Integração de API",
+    "descricao": "Integrar uma API de pagamentos a uma aplicação existente.",
+    "orcamento": 2200.0,
+    "status": "aberta"
+  }
+]
