@@ -817,6 +817,7 @@
             "type": "string"
           },
           "senha": {
+            "description": "Entre 8 e 72 caracteres, com no máximo 72 bytes em UTF-8.",
             "examples": [
               "senha-segura-123"
             ],
@@ -1752,6 +1753,54 @@
           }
         ],
         "summary": "Confirmar Conclusao",
+        "tags": [
+          "pagamentos"
+        ]
+      }
+    },
+    "/api/v1/vagas/{vaga_id}/falta": {
+      "post": {
+        "description": "O contratante registra a falta do profissional após a tolerância; o valor é estornado.",
+        "operationId": "pagamentos_registrar_falta",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagamentoDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Registrar Falta",
         "tags": [
           "pagamentos"
         ]

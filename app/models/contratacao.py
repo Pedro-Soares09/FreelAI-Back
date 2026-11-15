@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Integer,
@@ -37,12 +38,13 @@ from app.tempo import agora
 
 class Vaga(MarcaTempo, Base):
     __tablename__ = "vagas"
+    __table_args__ = (CheckConstraint("duracao_minutos > 0", name="ck_vagas_duracao"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     contratante_id: Mapped[int] = mapped_column(ForeignKey("perfis_contratantes.id"), index=True)
     categoria_id: Mapped[int] = mapped_column(ForeignKey("categorias.id"))
     profissional_id: Mapped[int | None] = mapped_column(
-        ForeignKey("perfis_profissionais.id"), nullable=True
+        ForeignKey("perfis_profissionais.id"), nullable=True, index=True
     )
     endereco_id: Mapped[int] = mapped_column(ForeignKey("enderecos.id"))
     titulo: Mapped[str] = mapped_column(String(120))
@@ -74,7 +76,7 @@ class Convite(MarcaTempo, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     vaga_id: Mapped[int] = mapped_column(ForeignKey("vagas.id"), index=True)
-    profissional_id: Mapped[int] = mapped_column(ForeignKey("perfis_profissionais.id"))
+    profissional_id: Mapped[int] = mapped_column(ForeignKey("perfis_profissionais.id"), index=True)
     rodada: Mapped[int] = mapped_column(SmallInteger, default=1)
     posicao: Mapped[int] = mapped_column(SmallInteger)
     pontuacao: Mapped[float] = mapped_column(default=0.0)
@@ -131,6 +133,11 @@ class Lancamento(Base):
     """Movimentação financeira. Somente inserção: nunca é alterada nem removida."""
 
     __tablename__ = "lancamentos"
+    # Cada tipo de movimentação ocorre no máximo uma vez por pagamento; a restrição é a rede de
+    # segurança contra gravações duplicadas em requisições simultâneas.
+    __table_args__ = (
+        UniqueConstraint("pagamento_id", "tipo", name="uq_lancamentos_pagamento_tipo"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     pagamento_id: Mapped[int] = mapped_column(ForeignKey("pagamentos.id"), index=True)
@@ -165,6 +172,9 @@ class Conversa(Base):
 
 class Mensagem(Base):
     __tablename__ = "mensagens"
+    __table_args__ = (
+        CheckConstraint("texto IS NOT NULL OR anexo_url IS NOT NULL", name="ck_mensagens_conteudo"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     conversa_id: Mapped[int] = mapped_column(ForeignKey("conversas.id"), index=True)
@@ -179,7 +189,10 @@ class Mensagem(Base):
 
 class Avaliacao(Base):
     __tablename__ = "avaliacoes"
-    __table_args__ = (UniqueConstraint("vaga_id", "avaliador_id"),)
+    __table_args__ = (
+        UniqueConstraint("vaga_id", "avaliador_id"),
+        CheckConstraint("nota BETWEEN 1 AND 5", name="ck_avaliacoes_nota"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     vaga_id: Mapped[int] = mapped_column(ForeignKey("vagas.id"))
@@ -224,6 +237,12 @@ class Advertencia(Base):
 
 class Disputa(Base):
     __tablename__ = "disputas"
+    __table_args__ = (
+        CheckConstraint(
+            "percentual_reembolso IS NULL OR percentual_reembolso BETWEEN 0 AND 100",
+            name="ck_disputas_percentual",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     vaga_id: Mapped[int] = mapped_column(ForeignKey("vagas.id"), unique=True)
