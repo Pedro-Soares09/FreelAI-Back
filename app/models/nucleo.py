@@ -4,6 +4,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     DateTime,
@@ -84,12 +85,13 @@ categorias_profissional = Table(
     "categorias_profissional",
     Base.metadata,
     Column("profissional_id", ForeignKey("perfis_profissionais.id"), primary_key=True),
-    Column("categoria_id", ForeignKey("categorias.id"), primary_key=True),
+    Column("categoria_id", ForeignKey("categorias.id"), primary_key=True, index=True),
 )
 
 
 class PerfilProfissional(MarcaTempo, Base):
     __tablename__ = "perfis_profissionais"
+    __table_args__ = (CheckConstraint("raio_km > 0", name="ck_perfis_profissionais_raio"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), unique=True)
@@ -187,7 +189,9 @@ class Experiencia(Base):
     __tablename__ = "experiencias"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    profissional_id: Mapped[int] = mapped_column(ForeignKey("perfis_profissionais.id"))
+    profissional_id: Mapped[int] = mapped_column(
+        ForeignKey("perfis_profissionais.id"), index=True
+    )
     categoria_id: Mapped[int | None] = mapped_column(ForeignKey("categorias.id"), nullable=True)
     descricao: Mapped[str] = mapped_column(Text)
     referencia_nome: Mapped[str | None] = mapped_column(String(120), nullable=True)

@@ -12,6 +12,7 @@ from decimal import Decimal
 
 from fastapi import status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.erros import erro_http
@@ -105,6 +106,12 @@ def elegiveis(db: Session, vaga: Vaga) -> list[PerfilProfissional]:
     categoria = db.get(Categoria, vaga.categoria_id)
     contratante = db.get(PerfilContratante, vaga.contratante_id)
     local = db.get(Endereco, vaga.endereco_id)
+    if local is None:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "vaga_sem_endereco",
+            "A vaga precisa de um endereço para buscar profissionais.",
+        )
     raio_maximo = configuracao.get("raio_maximo_km", db=db)
     caixa = caixa_para_raio(local.latitude, local.longitude, raio_maximo)
 
@@ -289,8 +296,16 @@ def gerar_rodada(db: Session, vaga: Vaga) -> list[Convite]:
 
     A primeira rodada usa `vaga.rodada`; as seguintes incrementam o contador. Uma rodada só
     pode ser gerada quando nenhum convite da rodada atual continua aguardando resposta.
-    Sem elegíveis, nada é alterado e a lista devolvida é vazia.
+    Sem elegíveis, nada é alterado e a lista devolvida é vazia. Só vagas publicadas recebem
+    novos convites.
     """
+    if vaga.estado != EstadoVaga.PUBLICADA:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "vaga_indisponivel",
+            "Só vagas publicadas recebem novos convites.",
+            estado_atual=vaga.estado.value,
+        )
     convites_existentes = db.scalars(select(Convite).where(Convite.vaga_id == vaga.id)).all()
     em_andamento = [
         c
@@ -323,7 +338,16 @@ def gerar_rodada(db: Session, vaga: Vaga) -> list[Convite]:
         for posicao, (perfil, pontuacao) in enumerate(selecionados, start=1)
     ]
     db.add_all(convites)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Outra requisição gerou a rodada ao mesmo tempo para os mesmos profissionais.
+        db.rollback()
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "rodada_em_andamento",
+            "A rodada desta vaga já foi gerada.",
+        ) from None
     for convite in convites:
         db.refresh(convite)
     return convites
