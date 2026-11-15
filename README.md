@@ -43,6 +43,29 @@ Contas suspensas e banidas recebem 403 com `codigo` e, quando houver, `retorno_e
 As rotas `POST /register`, `POST /login` e `GET /me` da versão anterior continuam disponíveis
 até o front migrar para `/api/v1/auth`.
 
+## Contrato OpenAPI
+
+O arquivo `contracts/openapi.json` é a ponte entre este repositório e o front. Ele é gerado, nunca
+editado à mão:
+
+```powershell
+python scripts/export_openapi.py           # regenera o contrato
+python scripts/export_openapi.py --check   # falha se estiver desatualizado
+```
+
+Toda alteração de rota ou schema deve regenerar e versionar o arquivo no mesmo commit. O front
+copia o arquivo e gera seus tipos TypeScript a partir dele.
+
+Rotas provisórias (`app/api/v1/stubs.py`) devolvem dados de exemplo, com o cabeçalho
+`X-Stub: true` e sem autenticação, para o front trabalhar antes das rotas reais:
+
+- `GET /api/v1/vagas/{vaga_id}`
+- `GET /api/v1/vagas/{vaga_id}/acordo`
+- `GET /api/v1/conversas/{conversa_id}`
+- `GET /api/v1/mapa/pontos`
+
+O campo `verificado` vem de `GET /api/v1/auth/me`.
+
 ## Perfis de execução
 
 A variável `PERFIL` escolhe o conjunto de prazos usado pela API:
