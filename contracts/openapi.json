@@ -266,6 +266,44 @@
         "title": "DadosAcordo",
         "type": "object"
       },
+      "DivisaoValores": {
+        "description": "Como o valor total se reparte entre profissional e plataforma.",
+        "examples": [
+          {
+            "percentual_taxa": "10",
+            "taxa_plataforma": "15.00",
+            "valor_liquido_profissional": "135.00",
+            "valor_total": "150.00"
+          }
+        ],
+        "properties": {
+          "percentual_taxa": {
+            "description": "Taxa da plataforma, de 0 a 100.",
+            "title": "Percentual Taxa",
+            "type": "string"
+          },
+          "taxa_plataforma": {
+            "title": "Taxa Plataforma",
+            "type": "string"
+          },
+          "valor_liquido_profissional": {
+            "title": "Valor Liquido Profissional",
+            "type": "string"
+          },
+          "valor_total": {
+            "title": "Valor Total",
+            "type": "string"
+          }
+        },
+        "required": [
+          "valor_total",
+          "percentual_taxa",
+          "taxa_plataforma",
+          "valor_liquido_profissional"
+        ],
+        "title": "DivisaoValores",
+        "type": "object"
+      },
       "EstadoConta": {
         "enum": [
           "pendente",
@@ -274,6 +312,18 @@
           "banida"
         ],
         "title": "EstadoConta",
+        "type": "string"
+      },
+      "EstadoPagamento": {
+        "enum": [
+          "aguardando",
+          "retido",
+          "liberado",
+          "liberado_parcial",
+          "estornado",
+          "expirado"
+        ],
+        "title": "EstadoPagamento",
         "type": "string"
       },
       "EstadoVaga": {
@@ -308,6 +358,54 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LancamentoResumo": {
+        "examples": [
+          {
+            "criado_em": "2026-11-20T13:50:00Z",
+            "descricao": "Pix recebido e retido até a conclusão do serviço",
+            "id": 1,
+            "tipo": "retencao",
+            "valor": "150.00"
+          }
+        ],
+        "properties": {
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoLancamento"
+          },
+          "valor": {
+            "title": "Valor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tipo",
+          "valor",
+          "criado_em"
+        ],
+        "title": "LancamentoResumo",
         "type": "object"
       },
       "LoginEntrada": {
@@ -360,6 +458,139 @@
           "enviada_em"
         ],
         "title": "MensagemResumo",
+        "type": "object"
+      },
+      "PagamentoDetalhe": {
+        "description": "Estado da cobrança Pix de uma vaga, com a divisão prevista e o livro de lançamentos.",
+        "examples": [
+          {
+            "atualizado_em": "2026-11-20T18:10:00Z",
+            "codigo_pix": "PIX-SIM-000005-1A2B3C4D5E6F7A8B9C0D",
+            "criado_em": "2026-11-20T13:50:00Z",
+            "divisao": {
+              "percentual_taxa": "10",
+              "taxa_plataforma": "15.00",
+              "valor_liquido_profissional": "135.00",
+              "valor_total": "150.00"
+            },
+            "estado": "liberado",
+            "expira_em": "2026-11-20T14:05:00Z",
+            "id": 5,
+            "lancamentos": [
+              {
+                "criado_em": "2026-11-20T13:50:00Z",
+                "descricao": "Pix recebido e retido até a conclusão do serviço",
+                "id": 1,
+                "tipo": "retencao",
+                "valor": "150.00"
+              },
+              {
+                "criado_em": "2026-11-20T18:10:00Z",
+                "descricao": "Liberação integral",
+                "id": 2,
+                "tipo": "liberacao_profissional",
+                "valor": "135.00"
+              },
+              {
+                "criado_em": "2026-11-20T18:10:00Z",
+                "descricao": "Taxa da plataforma",
+                "id": 3,
+                "tipo": "taxa_plataforma",
+                "valor": "15.00"
+              }
+            ],
+            "metodo": "pix",
+            "saldo_retido": "0.00",
+            "vaga_estado": "liberada",
+            "vaga_id": 42
+          }
+        ],
+        "properties": {
+          "atualizado_em": {
+            "format": "date-time",
+            "title": "Atualizado Em",
+            "type": "string"
+          },
+          "codigo_pix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Código copia e cola exibido ao contratante.",
+            "title": "Codigo Pix"
+          },
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "divisao": {
+            "$ref": "#/components/schemas/DivisaoValores"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoPagamento"
+          },
+          "expira_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Limite para confirmar o Pix.",
+            "title": "Expira Em"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lancamentos": {
+            "items": {
+              "$ref": "#/components/schemas/LancamentoResumo"
+            },
+            "title": "Lancamentos",
+            "type": "array"
+          },
+          "metodo": {
+            "const": "pix",
+            "default": "pix",
+            "title": "Metodo",
+            "type": "string"
+          },
+          "saldo_retido": {
+            "description": "Valor ainda retido; zero depois do estado final.",
+            "title": "Saldo Retido",
+            "type": "string"
+          },
+          "vaga_estado": {
+            "$ref": "#/components/schemas/EstadoVaga"
+          },
+          "vaga_id": {
+            "title": "Vaga Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "vaga_id",
+          "vaga_estado",
+          "estado",
+          "codigo_pix",
+          "expira_em",
+          "divisao",
+          "saldo_retido",
+          "lancamentos",
+          "criado_em",
+          "atualizado_em"
+        ],
+        "title": "PagamentoDetalhe",
         "type": "object"
       },
       "PapelUsuario": {
@@ -656,6 +887,16 @@
         "title": "ResultadoVarredura",
         "type": "object"
       },
+      "TipoLancamento": {
+        "enum": [
+          "retencao",
+          "liberacao_profissional",
+          "taxa_plataforma",
+          "estorno"
+        ],
+        "title": "TipoLancamento",
+        "type": "string"
+      },
       "TipoPerfil": {
         "enum": [
           "profissional",
@@ -847,6 +1088,28 @@
           "contratante"
         ],
         "title": "VagaResumo",
+        "type": "object"
+      },
+      "ValidacaoFacialEntrada": {
+        "properties": {
+          "selfie_url": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Imagem enviada para o reconhecimento; opcional na simulação.",
+            "examples": [
+              "https://arquivos.exemplo/selfies/42.jpg"
+            ],
+            "title": "Selfie Url"
+          }
+        },
+        "title": "ValidacaoFacialEntrada",
         "type": "object"
       },
       "ValidationError": {
@@ -1312,6 +1575,54 @@
         ]
       }
     },
+    "/api/v1/pagamentos/{pagamento_id}/simular-confirmacao": {
+      "post": {
+        "description": "Simula a confirmação do Pix pelo provedor. Disponível apenas no perfil de demonstração.",
+        "operationId": "pagamentos_simular_confirmacao",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pagamento_id",
+            "required": true,
+            "schema": {
+              "title": "Pagamento Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagamentoDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Simular Confirmacao",
+        "tags": [
+          "pagamentos"
+        ]
+      }
+    },
     "/api/v1/vagas/{vaga_id}": {
       "get": {
         "description": "Detalhe de uma vaga (resposta de exemplo).",
@@ -1395,6 +1706,213 @@
         "summary": "Consultar Acordo",
         "tags": [
           "vagas"
+        ]
+      }
+    },
+    "/api/v1/vagas/{vaga_id}/conclusao": {
+      "post": {
+        "description": "O contratante confirma a conclusão do serviço depois do fim previsto.",
+        "operationId": "pagamentos_confirmar_conclusao",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagamentoDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Confirmar Conclusao",
+        "tags": [
+          "pagamentos"
+        ]
+      }
+    },
+    "/api/v1/vagas/{vaga_id}/pagamento": {
+      "get": {
+        "description": "Estado da cobrança, divisão entre profissional e plataforma e lançamentos.",
+        "operationId": "pagamentos_consultar_pagamento",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagamentoDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Consultar Pagamento",
+        "tags": [
+          "pagamentos"
+        ]
+      },
+      "post": {
+        "description": "Abre a cobrança Pix da vaga aceita. O valor fica retido até a conclusão do serviço.",
+        "operationId": "pagamentos_abrir_cobranca",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagamentoDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Abrir Cobranca",
+        "tags": [
+          "pagamentos"
+        ]
+      }
+    },
+    "/api/v1/vagas/{vaga_id}/validacao-facial": {
+      "post": {
+        "description": "Validação facial do contratante; aprovada, libera o valor integral ao profissional.",
+        "operationId": "pagamentos_validar_facial",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ValidacaoFacialEntrada"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Entrada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagamentoDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Validar Facial",
+        "tags": [
+          "pagamentos"
         ]
       }
     }
