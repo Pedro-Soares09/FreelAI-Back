@@ -50,6 +50,16 @@ A variável `PERFIL` escolhe o conjunto de prazos usado pela API:
 - `producao`: prazos reais (horas e dias).
 - `demo`: prazos reduzidos para minutos, usados em apresentações.
 
+Todos os prazos, pesos e limites ficam em `app/services/configuracao.py` e são lidos com
+`configuracao.get("chave")`. Linhas na tabela `configuracoes` sobrepõem os padrões (use
+`semear_configuracoes(db)` para gravá-los no banco).
+
+Rotas administrativas (exigem conta com papel `admin`):
+
+- `POST /api/v1/admin/prazos/varrer`: força a execução imediata das varreduras de prazo
+  registradas com `@varredura("nome")` em `app/services/varreduras.py`.
+- `GET /api/v1/admin/configuracoes`: valores efetivos do perfil atual.
+
 ## Estrutura
 
 ```
