@@ -8,12 +8,11 @@ convites. Nenhum parâmetro de plano pago entra na seleção.
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from decimal import Decimal
 
 from fastapi import status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, contains_eager, selectinload
 
 from app.erros import erro_http
 from app.models import (
@@ -101,8 +100,13 @@ def _profissionais_ocupados(db: Session, vaga: Vaga, ids: list[int]) -> set[int]
     return ocupados
 
 
-def elegiveis(db: Session, vaga: Vaga) -> list[PerfilProfissional]:
-    """Profissionais aptos a receber convite para a vaga, em ordem de id."""
+def _candidatos_elegiveis(db: Session, vaga: Vaga) -> list[tuple[PerfilProfissional, float]]:
+    """Elegíveis com a distância até a vaga, em ordem de id.
+
+    O endereço e as categorias dos candidatos vêm carregados junto da consulta, e a
+    configuração é lida uma única vez, para que o custo em consultas não dependa do número de
+    candidatos.
+    """
     categoria = db.get(Categoria, vaga.categoria_id)
     contratante = db.get(PerfilContratante, vaga.contratante_id)
     local = db.get(Endereco, vaga.endereco_id)
@@ -127,6 +131,10 @@ def elegiveis(db: Session, vaga: Vaga) -> list[PerfilProfissional]:
         .join(
             categorias_profissional,
             categorias_profissional.c.profissional_id == PerfilProfissional.id,
+        )
+        .options(
+            contains_eager(PerfilProfissional.endereco),
+            selectinload(PerfilProfissional.categorias),
         )
         .where(
             Usuario.estado == EstadoConta.ATIVA,
@@ -164,62 +172,139 @@ def elegiveis(db: Session, vaga: Vaga) -> list[PerfilProfissional]:
             .exists()
         )
 
-    candidatos = db.scalars(consulta).all()
-    no_raio = [p for p in candidatos if distancia_ate_vaga(db, vaga, p) <= raio_efetivo_km(db, p)]
-    ocupados = _profissionais_ocupados(db, vaga, [p.id for p in no_raio])
-    return [p for p in no_raio if p.id not in ocupados]
+    no_raio = []
+    for candidato in db.scalars(consulta).unique().all():
+        destino = candidato.endereco
+        distancia = distancia_km(
+            local.latitude, local.longitude, destino.latitude, destino.longitude
+        )
+        if distancia <= min(candidato.raio_km, raio_maximo):
+            no_raio.append((candidato, distancia))
+    ocupados = _profissionais_ocupados(db, vaga, [p.id for p, _ in no_raio])
+    return [(p, d) for p, d in no_raio if p.id not in ocupados]
 
 
-def _nota_localizacao(db: Session, vaga: Vaga, profissional: PerfilProfissional) -> float:
-    raio = raio_efetivo_km(db, profissional)
-    distancia = distancia_ate_vaga(db, vaga, profissional)
+def elegiveis(db: Session, vaga: Vaga) -> list[PerfilProfissional]:
+    """Profissionais aptos a receber convite para a vaga, em ordem de id."""
+    return [perfil for perfil, _ in _candidatos_elegiveis(db, vaga)]
+
+
+@dataclass(frozen=True)
+class _Contexto:
+    """Dados compartilhados por todos os candidatos de uma seleção, lidos de uma só vez."""
+
+    vaga: Vaga
+    local: Endereco
+    raio_maximo: float
+    pesos: dict[str, float]
+    minimo_para_deixar_de_ser_novo: float
+    experiencias_aprovadas: dict[int, int]
+    reputacao: dict[int, float]
+    historico_de_preco: dict[int, float]
+
+
+def _mapa(db: Session, consulta) -> dict[int, float]:
+    return {chave: float(valor) for chave, valor in db.execute(consulta).all() if valor is not None}
+
+
+def _montar_contexto(db: Session, vaga: Vaga, profissionais: list[PerfilProfissional]) -> _Contexto:
+    ids = [p.id for p in profissionais]
+    usuarios = [p.usuario_id for p in profissionais]
+    experiencias = _mapa(
+        db,
+        select(Experiencia.profissional_id, func.count(Experiencia.id))
+        .where(
+            Experiencia.profissional_id.in_(ids),
+            Experiencia.categoria_id == vaga.categoria_id,
+            Experiencia.status == StatusAprovacao.APROVADO,
+        )
+        .group_by(Experiencia.profissional_id),
+    )
+    reputacao = _mapa(
+        db,
+        select(Avaliacao.avaliado_id, func.avg(Avaliacao.nota))
+        .where(
+            Avaliacao.avaliado_id.in_(usuarios),
+            Avaliacao.visivel_em.is_not(None),
+            Avaliacao.visivel_em <= agora(),
+        )
+        .group_by(Avaliacao.avaliado_id),
+    )
+    historico = _mapa(
+        db,
+        select(Vaga.profissional_id, func.avg(Vaga.valor_fixado))
+        .where(
+            Vaga.profissional_id.in_(ids),
+            Vaga.estado.in_(ESTADOS_LIBERADOS),
+            Vaga.valor_fixado.is_not(None),
+        )
+        .group_by(Vaga.profissional_id),
+    )
+    return _Contexto(
+        vaga=vaga,
+        local=db.get(Endereco, vaga.endereco_id),
+        raio_maximo=configuracao.get("raio_maximo_km", db=db),
+        pesos={
+            "localizacao": configuracao.get("peso_localizacao", db=db),
+            "habilidades": configuracao.get("peso_habilidades", db=db),
+            "reputacao": configuracao.get("peso_reputacao", db=db),
+            "preco": configuracao.get("peso_preco", db=db),
+        },
+        minimo_para_deixar_de_ser_novo=configuracao.get("servicos_para_deixar_de_ser_novo", db=db),
+        experiencias_aprovadas={int(k): int(v) for k, v in experiencias.items()},
+        reputacao=reputacao,
+        historico_de_preco=historico,
+    )
+
+
+def _nota_localizacao(ctx: _Contexto, profissional: PerfilProfissional) -> float:
+    destino = profissional.endereco
+    distancia = distancia_km(
+        ctx.local.latitude, ctx.local.longitude, destino.latitude, destino.longitude
+    )
+    raio = min(profissional.raio_km, ctx.raio_maximo)
     if raio <= 0:
         return 1.0 if distancia == 0 else 0.0
     return max(0.0, 1.0 - distancia / raio)
 
 
-def _nota_habilidades(db: Session, vaga: Vaga, profissional: PerfilProfissional) -> float:
-    if all(c.id != vaga.categoria_id for c in profissional.categorias):
+def _nota_habilidades(ctx: _Contexto, profissional: PerfilProfissional) -> float:
+    if all(c.id != ctx.vaga.categoria_id for c in profissional.categorias):
         return 0.0
-    aprovadas = db.scalar(
-        select(func.count(Experiencia.id)).where(
-            Experiencia.profissional_id == profissional.id,
-            Experiencia.categoria_id == vaga.categoria_id,
-            Experiencia.status == StatusAprovacao.APROVADO,
-        )
-    )
+    aprovadas = ctx.experiencias_aprovadas.get(profissional.id, 0)
     return 0.5 + 0.5 * min(aprovadas, EXPERIENCIAS_SATURACAO) / EXPERIENCIAS_SATURACAO
 
 
-def _nota_reputacao(db: Session, profissional: PerfilProfissional) -> float:
-    media = db.scalar(
-        select(func.avg(Avaliacao.nota)).where(
-            Avaliacao.avaliado_id == profissional.usuario_id,
-            Avaliacao.visivel_em.is_not(None),
-            Avaliacao.visivel_em <= agora(),
-        )
-    )
-    if media is None:
-        media = NOTA_SEM_AVALIACAO
-    return float(media) / NOTA_MAXIMA
+def _nota_reputacao(ctx: _Contexto, profissional: PerfilProfissional) -> float:
+    media = ctx.reputacao.get(profissional.usuario_id, NOTA_SEM_AVALIACAO)
+    return media / NOTA_MAXIMA
 
 
-def _nota_preco(db: Session, vaga: Vaga, profissional: PerfilProfissional) -> float:
-    historico = db.scalar(
-        select(func.avg(Vaga.valor_fixado)).where(
-            Vaga.profissional_id == profissional.id,
-            Vaga.estado.in_(ESTADOS_LIBERADOS),
-            Vaga.valor_fixado.is_not(None),
-        )
-    )
+def _nota_preco(ctx: _Contexto, profissional: PerfilProfissional) -> float:
+    historico = ctx.historico_de_preco.get(profissional.id)
     if historico is None:
         return 1.0
+    vaga = ctx.vaga
     valor_vaga = vaga.valor_fixado if vaga.valor_fixado is not None else vaga.valor_inicial
-    a, b = float(valor_vaga), float(Decimal(str(historico)))
+    a, b = float(valor_vaga), float(historico)
     maior = max(a, b)
     if maior <= 0:
         return 1.0
     return 1.0 - min(1.0, abs(a - b) / maior)
+
+
+def _pontuar(ctx: _Contexto, profissional: PerfilProfissional) -> float:
+    notas = {
+        "localizacao": _nota_localizacao(ctx, profissional),
+        "habilidades": _nota_habilidades(ctx, profissional),
+        "reputacao": _nota_reputacao(ctx, profissional),
+        "preco": _nota_preco(ctx, profissional),
+    }
+    soma_pesos = sum(ctx.pesos.values())
+    if soma_pesos <= 0:
+        return 0.0
+    total = sum(ctx.pesos[c] * notas[c] for c in ctx.pesos) / soma_pesos
+    return min(1.0, max(0.0, total))
 
 
 def pontuar(db: Session, vaga: Vaga, profissional: PerfilProfissional) -> float:
@@ -228,23 +313,7 @@ def pontuar(db: Session, vaga: Vaga, profissional: PerfilProfissional) -> float:
     Os pesos são normalizados pela soma para que a nota continue entre 0 e 1 mesmo que a
     configuração seja alterada para valores que não somem 1.
     """
-    pesos = {
-        "localizacao": configuracao.get("peso_localizacao", db=db),
-        "habilidades": configuracao.get("peso_habilidades", db=db),
-        "reputacao": configuracao.get("peso_reputacao", db=db),
-        "preco": configuracao.get("peso_preco", db=db),
-    }
-    notas = {
-        "localizacao": _nota_localizacao(db, vaga, profissional),
-        "habilidades": _nota_habilidades(db, vaga, profissional),
-        "reputacao": _nota_reputacao(db, profissional),
-        "preco": _nota_preco(db, vaga, profissional),
-    }
-    soma_pesos = sum(pesos.values())
-    if soma_pesos <= 0:
-        return 0.0
-    total = sum(pesos[c] * notas[c] for c in pesos) / soma_pesos
-    return min(1.0, max(0.0, total))
+    return _pontuar(_montar_contexto(db, vaga, [profissional]), profissional)
 
 
 @dataclass(frozen=True)
@@ -270,11 +339,16 @@ def selecionar_top3(db: Session, vaga: Vaga) -> list[tuple[PerfilProfissional, f
     Desempate por menor distância e depois por menor id. Se os dois melhores já incluem um
     Novo, ou se não há nenhum Novo elegível, a terceira vaga vai para o terceiro melhor geral.
     """
+    elegidos = _candidatos_elegiveis(db, vaga)
+    if not elegidos:
+        return []
+    ctx = _montar_contexto(db, vaga, [perfil for perfil, _ in elegidos])
+
+    def novo(candidato: _Candidato) -> bool:
+        return candidato.perfil.servicos_concluidos < ctx.minimo_para_deixar_de_ser_novo
+
     candidatos = sorted(
-        (
-            _Candidato(p, pontuar(db, vaga, p), distancia_ate_vaga(db, vaga, p))
-            for p in elegiveis(db, vaga)
-        ),
+        (_Candidato(perfil, _pontuar(ctx, perfil), distancia) for perfil, distancia in elegidos),
         key=lambda c: c.ordem,
     )
     if len(candidatos) <= 3:
@@ -282,11 +356,10 @@ def selecionar_top3(db: Session, vaga: Vaga) -> list[tuple[PerfilProfissional, f
     else:
         escolhidos = candidatos[:2]
         restantes = candidatos[2:]
-        if any(eh_novo(db, c.perfil) for c in escolhidos):
+        if any(novo(c) for c in escolhidos):
             escolhidos.append(restantes[0])
         else:
-            novo = next((c for c in restantes if eh_novo(db, c.perfil)), restantes[0])
-            escolhidos.append(novo)
+            escolhidos.append(next((c for c in restantes if novo(c)), restantes[0]))
         escolhidos.sort(key=lambda c: c.ordem)
     return [(c.perfil, c.pontuacao) for c in escolhidos]
 
