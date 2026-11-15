@@ -166,9 +166,22 @@ Mensagens de commit seguem o padrão `tipo: descrição` (`feat`, `fix`, `refact
 
 ## Docker
 
+A API e o banco sobem juntos pelo compose, no perfil `api`:
+
 ```powershell
-docker build -t freelai-back .
-docker run --rm -p 8000:8000 --env-file .env freelai-back
+$env:SECRET_KEY = python -c "import secrets; print(secrets.token_urlsafe(48))"
+docker compose --profile api up --build
 ```
 
-A imagem aplica as migrações antes de iniciar o servidor.
+A imagem roda com usuário não privilegiado, aplica as migrações antes de iniciar o servidor e
+define `AMBIENTE=producao`: sem uma `SECRET_KEY` própria de pelo menos 32 caracteres, a
+aplicação se recusa a iniciar. Dentro do contêiner o banco é acessado pelo nome `db`, e não por
+`localhost`, por isso o `DATABASE_URL` do `.env.example` (feito para rodar fora do Docker) não deve
+ser usado com `docker run`.
+
+## Segurança
+
+- Senhas aceitam no máximo 72 bytes em UTF-8 (limite do bcrypt); o registro recusa valores maiores.
+- O token de renovação não serve como token de acesso. Os tokens de renovação não são revogados
+  individualmente: uma troca de senha não invalida os já emitidos.
+- O SQLite é aberto com chaves estrangeiras ativas, para se comportar como o PostgreSQL.
