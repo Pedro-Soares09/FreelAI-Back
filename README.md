@@ -66,6 +66,31 @@ Rotas provisórias (`app/api/v1/stubs.py`) devolvem dados de exemplo, com o cabe
 
 O campo `verificado` vem de `GET /api/v1/auth/me`.
 
+## Pagamento
+
+O pagamento é feito somente por Pix e fica retido até a conclusão do serviço. A taxa da
+plataforma (`taxa_plataforma_pct`) é descontada do profissional. O gateway Pix e o
+reconhecimento facial ficam atrás de interfaces trocáveis em `app/services/pagamentos.py` e
+`app/services/biometria.py`; nesta fase ambos são simulados.
+
+Rotas (tag `pagamentos`):
+
+- `POST /api/v1/vagas/{vaga_id}/pagamento`: abre a cobrança Pix (contratante dono da vaga).
+- `GET /api/v1/vagas/{vaga_id}/pagamento`: estado, divisão e lançamentos (contratante ou
+  profissional contratado).
+- `POST /api/v1/pagamentos/{pagamento_id}/simular-confirmacao`: simula a confirmação do Pix.
+  Só existe no perfil `demo`; em `producao` responde 404.
+- `POST /api/v1/vagas/{vaga_id}/conclusao`: o contratante confirma a conclusão após o fim.
+- `POST /api/v1/vagas/{vaga_id}/validacao-facial`: validação facial do contratante; aprovada,
+  libera o valor integral ao profissional.
+
+Varreduras registradas pelo módulo: `conclusao_automatica` (sem resposta do contratante em
+`confirmacao_conclusao_min`), `liberacao_parcial` (sem validação facial em
+`liberacao_parcial_min`, libera `liberacao_parcial_pct` ao profissional e estorna o restante)
+e `expiracao_pagamentos` (cobrança não paga em `prazo_pagamento_min` expira e a vaga volta a
+`publicada`). Lançamentos nunca são alterados nem removidos: a soma das saídas de um
+pagamento encerrado é sempre igual ao valor retido.
+
 ## Perfis de execução
 
 A variável `PERFIL` escolhe o conjunto de prazos usado pela API:
