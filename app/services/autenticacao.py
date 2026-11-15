@@ -19,6 +19,7 @@ from app.security import (
     hash_password,
     verify_password,
 )
+from app.tempo import como_utc
 
 
 def _normalizar_email(email: str) -> str:
@@ -36,9 +37,16 @@ def registrar_usuario(db: Session, nome: str, email: str, senha: str) -> Usuario
     return usuario
 
 
+# Hash de uma senha inexistente, verificado quando o e-mail não está cadastrado para que o tempo
+# de resposta não revele se a conta existe.
+_HASH_FICTICIO = hash_password("senha-fictícia-para-igualar-o-tempo")
+
+
 def autenticar(db: Session, email: str, senha: str) -> Usuario:
     usuario = db.scalar(select(Usuario).where(Usuario.email == _normalizar_email(email)))
-    if usuario is None or not verify_password(senha, usuario.senha_hash):
+    hash_conferido = usuario.senha_hash if usuario is not None else _HASH_FICTICIO
+    senha_confere = verify_password(senha, hash_conferido)
+    if usuario is None or not senha_confere:
         raise erro_http(
             status.HTTP_401_UNAUTHORIZED, "credenciais_invalidas", "E-mail ou senha inválidos."
         )
@@ -100,7 +108,7 @@ def montar_usuario_atual(usuario: Usuario) -> UsuarioAtual:
         perfil_ativo=usuario.perfil_ativo,
         perfis=perfis_cadastrados(usuario),
         verificado=bool(perfil_ativo and perfil_ativo.verificado),
-        suspensa_ate=usuario.suspensa_ate,
+        suspensa_ate=como_utc(usuario.suspensa_ate) if usuario.suspensa_ate else None,
     )
 
 

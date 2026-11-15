@@ -6,7 +6,8 @@ from app.db import get_db
 from app.deps import get_current_user
 from app.models import Usuario
 from app.schemas import Token, UserCreate, UserLogin, UserPublic
-from app.security import create_access_token, hash_password, verify_password
+from app.security import create_access_token, hash_password
+from app.services import autenticacao
 
 router = APIRouter(tags=["auth"])
 
@@ -41,15 +42,8 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> UserPublic:
 
 @router.post("/login", response_model=Token)
 def login(payload: UserLogin, db: Session = Depends(get_db)) -> Token:
-    email = str(payload.email).lower()
-    user = db.scalar(select(Usuario).where(Usuario.email == email))
-    if user is None or not verify_password(payload.senha, user.senha_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="E-mail ou senha inválidos",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
+    # Mesma verificação da rota versionada, inclusive o bloqueio de contas suspensas e banidas.
+    user = autenticacao.autenticar(db, str(payload.email), payload.senha)
     return Token(access_token=create_access_token(str(user.id)))
 
 
