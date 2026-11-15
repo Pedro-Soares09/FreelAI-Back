@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: freelai-db
+    environment:
+      POSTGRES_USER: freelai
+      POSTGRES_PASSWORD: freelai
+      POSTGRES_DB: freelai
+    ports:
+      - "5432:5432"
+    volumes:
+      - freelai-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U freelai -d freelai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  freelai-db-data:
