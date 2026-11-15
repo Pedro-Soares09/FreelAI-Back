@@ -1,20 +1,28 @@
 """Funções auxiliares para montar dados de teste."""
 
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
 from app.models import (
+    Categoria,
+    Endereco,
     EstadoConta,
+    EstadoVaga,
     PapelUsuario,
     PerfilContratante,
     PerfilProfissional,
+    RiscoCategoria,
     StatusAprovacao,
     TipoPerfil,
     TipoPessoa,
     Usuario,
+    Vaga,
 )
 from app.security import create_access_token, hash_password
+from app.tempo import agora
 
 SENHA_PADRAO = "senha-segura-123"
 _contador = {"n": 0}
@@ -74,3 +82,53 @@ def criar_usuario(
 
 def cabecalho(usuario: Usuario) -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token(str(usuario.id))}"}
+
+
+@dataclass
+class CenarioVaga:
+    """Vaga com contratante e profissional de contas distintas, pronta para o pagamento."""
+
+    vaga: Vaga
+    contratante: Usuario
+    profissional: Usuario
+
+
+def criar_vaga(
+    db: Session,
+    *,
+    valor: Decimal = Decimal("150.00"),
+    valor_fixado: Decimal | None = None,
+    estado: EstadoVaga = EstadoVaga.ACEITA,
+    inicio_em: datetime | None = None,
+    duracao_minutos: int = 120,
+    contratante: Usuario | None = None,
+    profissional: Usuario | None = None,
+) -> CenarioVaga:
+    n = _proximo()
+    contratante = contratante or criar_usuario(
+        db, perfis=(TipoPerfil.CONTRATANTE,), perfil_ativo=TipoPerfil.CONTRATANTE
+    )
+    profissional = profissional or criar_usuario(
+        db, perfis=(TipoPerfil.PROFISSIONAL,), perfil_ativo=TipoPerfil.PROFISSIONAL
+    )
+    categoria = Categoria(slug=f"categoria-{n}", nome=f"Categoria {n}", risco=RiscoCategoria.BAIXO)
+    endereco = Endereco(bairro="Boa Viagem", latitude=-8.12, longitude=-34.90)
+    db.add_all([categoria, endereco])
+    db.flush()
+    vaga = Vaga(
+        contratante_id=contratante.perfil_contratante.id,
+        categoria_id=categoria.id,
+        profissional_id=profissional.perfil_profissional.id,
+        endereco_id=endereco.id,
+        titulo=f"Serviço {n}",
+        descricao="Serviço de teste",
+        inicio_em=inicio_em or agora() + timedelta(hours=1),
+        duracao_minutos=duracao_minutos,
+        valor_inicial=valor,
+        valor_fixado=valor_fixado,
+        estado=estado,
+    )
+    db.add(vaga)
+    db.commit()
+    db.refresh(vaga)
+    return CenarioVaga(vaga=vaga, contratante=contratante, profissional=profissional)

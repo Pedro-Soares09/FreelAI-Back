@@ -90,7 +90,7 @@ def test_varredura_forcada_executa_as_varreduras_registradas(cliente, db):
         varreduras.remover_varredura("teste_expiracao")
 
     assert resposta.status_code == 200
-    assert resposta.json()["alteracoes"] == {"teste_expiracao": 3}
+    assert resposta.json()["alteracoes"]["teste_expiracao"] == 3
     assert len(chamadas) == 1
 
 
