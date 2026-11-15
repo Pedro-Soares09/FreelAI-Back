@@ -4,7 +4,7 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import User
+from app.models import Usuario
 from app.security import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
@@ -13,7 +13,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
-) -> User:
+) -> Usuario:
     credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Credenciais inválidas ou token expirado",
@@ -28,7 +28,7 @@ def get_current_user(
     except (JWTError, ValueError):
         raise credentials_error from None
 
-    user = db.get(User, user_id)
+    user = db.get(Usuario, user_id)
     if user is None:
         raise credentials_error
     return user
