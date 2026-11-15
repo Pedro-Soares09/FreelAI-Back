@@ -32,3 +32,10 @@ def restaurar_relogio() -> None:
     """Volta a usar o relógio real."""
     global _relogio
     _relogio = None
+
+
+def como_utc(instante: datetime) -> datetime:
+    """Garante fuso UTC em datas lidas de bancos que descartam o fuso (como o SQLite)."""
+    if instante.tzinfo is None:
+        return instante.replace(tzinfo=UTC)
+    return instante
