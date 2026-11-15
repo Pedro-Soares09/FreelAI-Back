@@ -338,3 +338,157 @@ def estornar_integral(
     return pagamento
 
 
+# ---------------------------------------------------------------------------
+# Conclusão, validação facial e falta
+# ---------------------------------------------------------------------------
+
+ESTADOS_CONCLUIVEIS = (EstadoVaga.CONTRATADA, EstadoVaga.EM_EXECUCAO, EstadoVaga.ENCERRADA)
+
+
+def confirmar_conclusao(db: Session, vaga: Vaga, contratante_usuario_id: int) -> Vaga:
+    """O contratante confirma que o serviço foi prestado. Só vale depois do fim previsto."""
+    exigir_contratante_dono(db, vaga, contratante_usuario_id)
+    if vaga.estado == EstadoVaga.CONCLUIDA:
+        return vaga
+    if vaga.estado not in ESTADOS_CONCLUIVEIS:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "vaga_nao_concluivel",
+            "A vaga não está em um estado que permita confirmar a conclusão.",
+            estado_atual=vaga.estado.value,
+        )
+    fim = fim_do_servico(vaga)
+    if agora() < fim:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "servico_nao_terminou",
+            "A conclusão só pode ser confirmada depois do fim previsto do serviço.",
+            fim_em=fim.isoformat(),
+        )
+    vaga.estado = EstadoVaga.CONCLUIDA
+    db.commit()
+    db.refresh(vaga)
+    return vaga
+
+
+def validar_facial_e_liberar(
+    db: Session, vaga: Vaga, usuario: Usuario, *, selfie_url: str | None = None
+) -> Pagamento:
+    """Validação facial do contratante após a conclusão; aprovada, libera o valor integral."""
+    exigir_contratante_dono(db, vaga, usuario.id)
+    if vaga.estado != EstadoVaga.CONCLUIDA:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "vaga_nao_concluida",
+            "A validação facial só é aceita depois da confirmação de conclusão.",
+            estado_atual=vaga.estado.value,
+        )
+    pagamento = pagamento_da_vaga(db, vaga)
+    if pagamento is None:
+        raise erro_http(
+            status.HTTP_409_CONFLICT, "pagamento_inexistente", "A vaga não possui pagamento."
+        )
+    _exigir_retido(pagamento)
+    if not biometria.obter_reconhecimento().validar(db, usuario.id, selfie_url=selfie_url):
+        raise erro_http(
+            status.HTTP_403_FORBIDDEN,
+            "validacao_facial_reprovada",
+            "Não foi possível confirmar a identidade do contratante.",
+        )
+    return liberar_integral(db, pagamento)
+
+
+def registrar_falta(db: Session, vaga: Vaga) -> Vaga:
+    """Falta do profissional: a vaga vai para falta e o valor retido volta ao contratante."""
+    if vaga.estado == EstadoVaga.FALTA:
+        return vaga
+    if vaga.estado not in (EstadoVaga.CONTRATADA, EstadoVaga.EM_EXECUCAO):
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "vaga_sem_contratacao",
+            "A falta só pode ser registrada em uma vaga contratada.",
+            estado_atual=vaga.estado.value,
+        )
+    pagamento = pagamento_da_vaga(db, vaga)
+    if pagamento is not None and pagamento.estado == EstadoPagamento.RETIDO:
+        estornar_integral(db, pagamento, estado_vaga=EstadoVaga.FALTA)
+    else:
+        vaga.estado = EstadoVaga.FALTA
+        db.commit()
+    db.refresh(vaga)
+    return vaga
+
+
+# ---------------------------------------------------------------------------
+# Varreduras
+# ---------------------------------------------------------------------------
+
+
+def _vagas_com_fim_vencido(db: Session, estados, chave_prazo: str) -> list[Vaga]:
+    """Vagas nos `estados` cujo fim do serviço mais o prazo `chave_prazo` já passou."""
+    prazo = timedelta(minutes=configuracao.get(chave_prazo, db=db))
+    limite = agora() - prazo
+    candidatas = db.scalars(
+        select(Vaga).where(Vaga.estado.in_(estados), Vaga.inicio_em <= limite)
+    ).all()
+    return [vaga for vaga in candidatas if fim_do_servico(vaga) <= limite]
+
+
+@varredura("conclusao_automatica")
+def concluir_automaticamente(db: Session) -> int:
+    """Conclui vagas sem resposta do contratante dentro do prazo após o fim do serviço."""
+    vencidas = _vagas_com_fim_vencido(db, ESTADOS_CONCLUIVEIS, "confirmacao_conclusao_min")
+    for vaga in vencidas:
+        vaga.estado = EstadoVaga.CONCLUIDA
+    if vencidas:
+        db.commit()
+    return len(vencidas)
+
+
+def _em_disputa(db: Session, vaga: Vaga) -> bool:
+    return (
+        db.scalar(
+            select(Disputa.id).where(
+                Disputa.vaga_id == vaga.id, Disputa.estado == EstadoDisputa.ABERTA
+            )
+        )
+        is not None
+    )
+
+
+@varredura("liberacao_parcial")
+def liberar_parcialmente_sem_validacao(db: Session) -> int:
+    """Libera a parcela configurada quando a validação facial não acontece no prazo."""
+    alteradas = 0
+    percentual = configuracao.get("liberacao_parcial_pct", db=db)
+    for vaga in _vagas_com_fim_vencido(db, (EstadoVaga.CONCLUIDA,), "liberacao_parcial_min"):
+        if _em_disputa(db, vaga):
+            continue
+        pagamento = pagamento_da_vaga(db, vaga)
+        if pagamento is None or pagamento.estado != EstadoPagamento.RETIDO:
+            continue
+        liberar_parcial(db, pagamento, percentual)
+        alteradas += 1
+    return alteradas
+
+
+@varredura("expiracao_pagamentos")
+def expirar_pagamentos(db: Session) -> int:
+    """Expira cobranças não pagas no prazo e devolve a vaga à publicação."""
+    instante = agora()
+    pendentes = db.scalars(
+        select(Pagamento).where(Pagamento.estado == EstadoPagamento.AGUARDANDO)
+    ).all()
+    alterados = 0
+    for pagamento in pendentes:
+        if pagamento.expira_em is None or como_utc(pagamento.expira_em) > instante:
+            continue
+        pagamento.estado = EstadoPagamento.EXPIRADO
+        vaga = db.get(Vaga, pagamento.vaga_id)
+        if vaga is not None and vaga.estado == EstadoVaga.AGUARDANDO_PAGAMENTO:
+            vaga.estado = EstadoVaga.PUBLICADA
+            vaga.profissional_id = None
+        alterados += 1
+    if alterados:
+        db.commit()
+    return alterados
