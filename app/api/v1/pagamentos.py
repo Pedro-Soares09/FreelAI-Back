@@ -1,5 +1,7 @@
 """Rotas do pagamento Pix: abertura da cobrança, consulta, conclusão e validação facial."""
 
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
@@ -13,8 +15,9 @@ from app.config import settings
 from app.db import get_db
 from app.deps import exige_conta_ativa, exige_perfil, usuario_atual
 from app.erros import erro_http
-from app.models import Pagamento, TipoPerfil, Usuario, Vaga
+from app.models import Pagamento, TipoLancamento, TipoPerfil, Usuario, Vaga
 from app.services import pagamentos
+from app.tempo import como_utc
 
 router = APIRouter(tags=["pagamentos"])
 
@@ -63,29 +66,59 @@ def _e_parte_da_vaga(usuario: Usuario, vaga: Vaga) -> bool:
     )
 
 
-def montar_detalhe(db: Session, pagamento: Pagamento, vaga: Vaga) -> PagamentoDetalhe:
+def _em_utc(instante):
+    return como_utc(instante) if instante is not None else None
+
+
+def _divisao(db: Session, pagamento: Pagamento) -> DivisaoValores:
+    """Divisão prevista ou, quando o pagamento já foi encerrado, a que o livro registrou."""
     percentual = pagamentos.taxa_configurada(db)
-    liquido, taxa = pagamentos.calcular_divisao(pagamento.valor_total, percentual)
+    lancamentos = pagamento.lancamentos
+    if pagamento.estado in pagamentos.ESTADOS_FINAIS and lancamentos:
+        liquido = sum(
+            (
+                item.valor
+                for item in lancamentos
+                if item.tipo == TipoLancamento.LIBERACAO_PROFISSIONAL
+            ),
+            Decimal("0.00"),
+        )
+        taxa = sum(
+            (item.valor for item in lancamentos if item.tipo == TipoLancamento.TAXA_PLATAFORMA),
+            Decimal("0.00"),
+        )
+    else:
+        liquido, taxa = pagamentos.calcular_divisao(pagamento.valor_total, percentual)
+    return DivisaoValores(
+        valor_total=pagamento.valor_total,
+        percentual_taxa=percentual,
+        taxa_plataforma=taxa,
+        valor_liquido_profissional=liquido,
+    )
+
+
+def montar_detalhe(db: Session, pagamento: Pagamento, vaga: Vaga) -> PagamentoDetalhe:
     return PagamentoDetalhe(
         id=pagamento.id,
         vaga_id=vaga.id,
         vaga_estado=vaga.estado,
         estado=pagamento.estado,
         codigo_pix=pagamento.codigo_pix,
-        expira_em=pagamento.expira_em,
-        divisao=DivisaoValores(
-            valor_total=pagamento.valor_total,
-            percentual_taxa=percentual,
-            taxa_plataforma=taxa,
-            valor_liquido_profissional=liquido,
-        ),
+        expira_em=_em_utc(pagamento.expira_em),
+        divisao=_divisao(db, pagamento),
         saldo_retido=pagamentos.saldo_retido(pagamento),
         lancamentos=[
-            LancamentoResumo.model_validate(item)
+            LancamentoResumo(
+                id=item.id,
+                tipo=item.tipo,
+                valor=item.valor,
+                descricao=item.descricao,
+                criado_em=_em_utc(item.criado_em),
+            )
             for item in sorted(pagamento.lancamentos, key=lambda item: item.id)
         ],
-        criado_em=pagamento.criado_em,
-        atualizado_em=pagamento.atualizado_em,
+        criado_em=_em_utc(pagamento.criado_em),
+        atualizado_em=_em_utc(pagamento.atualizado_em),
     )
 
 
@@ -127,7 +160,7 @@ def consultar_pagamento(
 @router.post("/pagamentos/{pagamento_id}/simular-confirmacao", response_model=PagamentoDetalhe)
 def simular_confirmacao(
     pagamento_id: int,
-    usuario: Usuario = Depends(usuario_atual),
+    usuario: Usuario = Depends(contratante_ativo),
     db: Session = Depends(get_db),
 ) -> PagamentoDetalhe:
     """Simula a confirmação do Pix pelo provedor. Disponível apenas no perfil de demonstração."""
@@ -149,6 +182,19 @@ def confirmar_conclusao(
     """O contratante confirma a conclusão do serviço depois do fim previsto."""
     vaga = _buscar_vaga(db, vaga_id)
     vaga = pagamentos.confirmar_conclusao(db, vaga, usuario.id)
+    return montar_detalhe(db, _pagamento_obrigatorio(db, vaga), vaga)
+
+
+@router.post("/vagas/{vaga_id}/falta", response_model=PagamentoDetalhe)
+def registrar_falta(
+    vaga_id: int,
+    usuario: Usuario = Depends(contratante_ativo),
+    db: Session = Depends(get_db),
+) -> PagamentoDetalhe:
+    """O contratante registra a falta do profissional após a tolerância; o valor é estornado."""
+    vaga = _buscar_vaga(db, vaga_id)
+    pagamentos.exigir_contratante_dono(db, vaga, usuario.id)
+    vaga = pagamentos.registrar_falta(db, vaga)
     return montar_detalhe(db, _pagamento_obrigatorio(db, vaga), vaga)
 
 

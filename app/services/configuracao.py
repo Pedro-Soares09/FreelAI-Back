@@ -54,9 +54,14 @@ PARAMETROS: dict[str, Parametro] = {
     "disponivel_agora_min": Parametro(240, 3, "Duração do modo Disponível agora"),
     "notificacao_atraso_min": Parametro(2, 0, "Atraso das notificações para quem não é Pro"),
     "contraproposta_max_pct": Parametro(50, 50, "Acréscimo máximo de uma contraproposta"),
-    "taxa_plataforma_pct": Parametro(10, 10, "Taxa da plataforma sobre o valor do serviço"),
+    "taxa_plataforma_pct": Parametro(
+        10, 10, "Taxa da plataforma sobre o valor do serviço", inteiro=False
+    ),
     "liberacao_parcial_pct": Parametro(
-        50, 50, "Parcela liberada ao profissional quando não há validação facial no prazo"
+        50,
+        50,
+        "Parcela liberada ao profissional quando não há validação facial no prazo",
+        inteiro=False,
     ),
     "peso_localizacao": Parametro(0.40, 0.40, "Peso da localização no match", inteiro=False),
     "peso_habilidades": Parametro(0.30, 0.30, "Peso das habilidades no match", inteiro=False),

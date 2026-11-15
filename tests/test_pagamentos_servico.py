@@ -101,11 +101,14 @@ def test_criar_pagamento_usa_valor_fixado_e_prazo_configurado(db):
 def test_codigo_pix_simulado_e_deterministico():
     gateway = pagamentos.GatewaySimulado()
 
-    primeiro = gateway.criar_cobranca(7, Decimal("10.00"), agora())
-    segundo = gateway.criar_cobranca(7, Decimal("10.00"), agora())
+    instante = agora()
+    primeiro = gateway.criar_cobranca(7, Decimal("10.00"), instante)
+    segundo = gateway.criar_cobranca(7, Decimal("10.00"), instante)
 
     assert primeiro.codigo_pix == segundo.codigo_pix
-    assert gateway.criar_cobranca(8, Decimal("10.00"), agora()).codigo_pix != primeiro.codigo_pix
+    assert gateway.criar_cobranca(8, Decimal("10.00"), instante).codigo_pix != primeiro.codigo_pix
+    outro_prazo = gateway.criar_cobranca(7, Decimal("10.00"), instante + timedelta(minutes=5))
+    assert outro_prazo.codigo_pix != primeiro.codigo_pix
 
 
 def test_criar_pagamento_recusa_vaga_fora_do_aceite(db):
@@ -151,7 +154,8 @@ def test_reter_e_idempotente_e_recusa_cobranca_expirada(db):
 
     assert erro.value.status_code == 409
     assert erro.value.detail["codigo"] == "pagamento_expirado"
-    assert pendente.estado == EstadoPagamento.AGUARDANDO
+    assert pendente.estado == EstadoPagamento.EXPIRADO
+    assert outro.vaga.estado == EstadoVaga.PUBLICADA
 
 
 # Liberações e estorno
@@ -372,6 +376,7 @@ def test_validacao_facial_reprovada_nao_libera(db, monkeypatch):
 
 def test_falta_do_profissional_estorna_tudo(db):
     cenario, pagamento = _retido(db)
+    fixar_relogio(como_utc(cenario.vaga.inicio_em) + _minutos("tolerancia_falta_min", db))
 
     pagamentos.registrar_falta(db, cenario.vaga)
 

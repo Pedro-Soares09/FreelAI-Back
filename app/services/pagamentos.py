@@ -10,6 +10,7 @@ são simulados.
 """
 
 import hashlib
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -17,6 +18,7 @@ from typing import Literal, Protocol
 
 from fastapi import status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.erros import erro_http
@@ -35,6 +37,8 @@ from app.models import (
 from app.services import biometria, configuracao
 from app.services.varreduras import varredura
 from app.tempo import agora, como_utc
+
+logger = logging.getLogger(__name__)
 
 CENTAVOS = Decimal("0.01")
 CEM = Decimal("100")
@@ -75,7 +79,8 @@ class GatewaySimulado:
         return hashlib.sha256(semente.encode()).hexdigest()[:20].upper()
 
     def criar_cobranca(self, pagamento_id: int, valor: Decimal, expira_em: datetime) -> Cobranca:
-        codigo = f"{self.PREFIXO}-{pagamento_id:06d}-{self._assinatura(f'cobranca:{pagamento_id}')}"
+        semente = f"cobranca:{pagamento_id}:{expira_em.isoformat()}"
+        codigo = f"{self.PREFIXO}-{pagamento_id:06d}-{self._assinatura(semente)}"
         return Cobranca(codigo_pix=codigo, valor=valor, expira_em=expira_em)
 
     def consultar(self, codigo_pix: str) -> SituacaoCobranca:
@@ -104,7 +109,9 @@ def _centavos(valor: Decimal) -> Decimal:
 
 def taxa_configurada(db: Session | None = None) -> Decimal:
     """Percentual da taxa da plataforma em vigor (de 0 a 100)."""
-    return _para_decimal(configuracao.get("taxa_plataforma_pct", db=db))
+    percentual = _para_decimal(configuracao.get("taxa_plataforma_pct", db=db))
+    inteiro = percentual.to_integral_value()
+    return inteiro if percentual == inteiro else percentual
 
 
 def calcular_divisao(
@@ -191,6 +198,32 @@ def _lancar(
     db.add(Lancamento(pagamento_id=pagamento.id, tipo=tipo, valor=valor, descricao=descricao))
 
 
+def _travar(db: Session, pagamento: Pagamento) -> None:
+    """Recarrega o pagamento com bloqueio de linha (onde o banco suporta).
+
+    Evita que duas requisições simultâneas, ambas vendo o estado antigo, gravem lançamentos
+    em duplicidade.
+    """
+    db.refresh(pagamento, with_for_update=True)
+
+
+def _cobranca_vencida(pagamento: Pagamento) -> bool:
+    return (
+        pagamento.estado == EstadoPagamento.AGUARDANDO
+        and pagamento.expira_em is not None
+        and como_utc(pagamento.expira_em) <= agora()
+    )
+
+
+def _expirar(db: Session, pagamento: Pagamento) -> None:
+    """Marca a cobrança como expirada e devolve a vaga à publicação. Não faz commit."""
+    pagamento.estado = EstadoPagamento.EXPIRADO
+    vaga = db.get(Vaga, pagamento.vaga_id)
+    if vaga is not None and vaga.estado == EstadoVaga.AGUARDANDO_PAGAMENTO:
+        vaga.estado = EstadoVaga.PUBLICADA
+        vaga.profissional_id = None
+
+
 def _exigir_retido(pagamento: Pagamento) -> None:
     if pagamento.estado != EstadoPagamento.RETIDO:
         raise _erro_estado_pagamento(pagamento, EstadoPagamento.RETIDO)
@@ -215,6 +248,9 @@ def criar_pagamento(db: Session, vaga: Vaga) -> Pagamento:
             estado_atual=vaga.estado.value,
         )
     existente = pagamento_da_vaga(db, vaga)
+    if existente is not None and _cobranca_vencida(existente):
+        _expirar(db, existente)
+        vaga.estado = EstadoVaga.ACEITA
     if existente is not None and existente.estado != EstadoPagamento.EXPIRADO:
         raise erro_http(
             status.HTTP_409_CONFLICT,
@@ -224,14 +260,29 @@ def criar_pagamento(db: Session, vaga: Vaga) -> Pagamento:
             estado_atual=existente.estado.value,
         )
 
-    valor = _centavos(_para_decimal(vaga.valor_fixado or vaga.valor_inicial))
+    base = vaga.valor_fixado if vaga.valor_fixado is not None else vaga.valor_inicial
+    valor = _centavos(_para_decimal(base))
+    if valor <= 0:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "valor_invalido",
+            "O valor da vaga precisa ser maior que zero para abrir a cobrança.",
+        )
     prazo = timedelta(minutes=configuracao.get("prazo_pagamento_min", db=db))
     pagamento = existente or Pagamento(vaga_id=vaga.id, valor_total=valor)
     pagamento.valor_total = valor
     pagamento.estado = EstadoPagamento.AGUARDANDO
     pagamento.expira_em = agora() + prazo
     db.add(pagamento)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "pagamento_ja_existe",
+            "Esta vaga já possui uma cobrança.",
+        ) from None
 
     cobranca = obter_gateway().criar_cobranca(pagamento.id, valor, pagamento.expira_em)
     pagamento.codigo_pix = cobranca.codigo_pix
@@ -243,11 +294,14 @@ def criar_pagamento(db: Session, vaga: Vaga) -> Pagamento:
 
 def reter(db: Session, pagamento: Pagamento) -> Pagamento:
     """Confirma a entrada do Pix: o valor passa a retido e a vaga fica contratada."""
+    _travar(db, pagamento)
     if pagamento.estado == EstadoPagamento.RETIDO:
         return pagamento
     if pagamento.estado != EstadoPagamento.AGUARDANDO:
         raise _erro_estado_pagamento(pagamento, EstadoPagamento.AGUARDANDO)
-    if pagamento.expira_em is not None and como_utc(pagamento.expira_em) <= agora():
+    if _cobranca_vencida(pagamento):
+        _expirar(db, pagamento)
+        db.commit()
         raise erro_http(
             status.HTTP_409_CONFLICT,
             "pagamento_expirado",
@@ -272,6 +326,7 @@ def reter(db: Session, pagamento: Pagamento) -> Pagamento:
 
 def liberar_integral(db: Session, pagamento: Pagamento) -> Pagamento:
     """Libera todo o valor retido ao profissional, descontada a taxa da plataforma."""
+    _travar(db, pagamento)
     if pagamento.estado == EstadoPagamento.LIBERADO:
         return pagamento
     _exigir_retido(pagamento)
@@ -292,6 +347,7 @@ def liberar_parcial(db: Session, pagamento: Pagamento, percentual: Decimal | int
     pct = _para_decimal(percentual)
     if not 0 <= pct <= CEM:
         raise ValueError("O percentual da liberação parcial deve ficar entre 0 e 100.")
+    _travar(db, pagamento)
     if pagamento.estado == EstadoPagamento.LIBERADO_PARCIAL:
         return pagamento
     _exigir_retido(pagamento)
@@ -323,6 +379,7 @@ def estornar_integral(
     db: Session, pagamento: Pagamento, *, estado_vaga: EstadoVaga = EstadoVaga.REEMBOLSADA
 ) -> Pagamento:
     """Devolve todo o valor retido ao contratante. Nenhuma taxa é cobrada."""
+    _travar(db, pagamento)
     if pagamento.estado == EstadoPagamento.ESTORNADO:
         return pagamento
     _exigir_retido(pagamento)
@@ -341,6 +398,12 @@ def estornar_integral(
 # ---------------------------------------------------------------------------
 # Conclusão, validação facial e falta
 # ---------------------------------------------------------------------------
+
+ESTADOS_FINAIS = (
+    EstadoPagamento.LIBERADO,
+    EstadoPagamento.LIBERADO_PARCIAL,
+    EstadoPagamento.ESTORNADO,
+)
 
 ESTADOS_CONCLUIVEIS = (EstadoVaga.CONTRATADA, EstadoVaga.EM_EXECUCAO, EstadoVaga.ENCERRADA)
 
@@ -388,6 +451,12 @@ def validar_facial_e_liberar(
         raise erro_http(
             status.HTTP_409_CONFLICT, "pagamento_inexistente", "A vaga não possui pagamento."
         )
+    if _em_disputa(db, vaga):
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "vaga_em_disputa",
+            "A liberação fica suspensa enquanto a disputa estiver aberta.",
+        )
     _exigir_retido(pagamento)
     if not biometria.obter_reconhecimento().validar(db, usuario.id, selfie_url=selfie_url):
         raise erro_http(
@@ -398,8 +467,11 @@ def validar_facial_e_liberar(
     return liberar_integral(db, pagamento)
 
 
-def registrar_falta(db: Session, vaga: Vaga) -> Vaga:
-    """Falta do profissional: a vaga vai para falta e o valor retido volta ao contratante."""
+def registrar_falta(db: Session, vaga: Vaga, *, exigir_tolerancia: bool = True) -> Vaga:
+    """Falta do profissional: a vaga vai para falta e o valor retido volta ao contratante.
+
+    Só é aceita depois da tolerância de atraso a partir do início do serviço.
+    """
     if vaga.estado == EstadoVaga.FALTA:
         return vaga
     if vaga.estado not in (EstadoVaga.CONTRATADA, EstadoVaga.EM_EXECUCAO):
@@ -409,6 +481,16 @@ def registrar_falta(db: Session, vaga: Vaga) -> Vaga:
             "A falta só pode ser registrada em uma vaga contratada.",
             estado_atual=vaga.estado.value,
         )
+    if exigir_tolerancia:
+        tolerancia = timedelta(minutes=configuracao.get("tolerancia_falta_min", db=db))
+        liberada_em = como_utc(vaga.inicio_em) + tolerancia
+        if agora() < liberada_em:
+            raise erro_http(
+                status.HTTP_409_CONFLICT,
+                "tolerancia_em_andamento",
+                "A falta só pode ser registrada depois da tolerância de atraso.",
+                liberada_em=liberada_em.isoformat(),
+            )
     pagamento = pagamento_da_vaga(db, vaga)
     if pagamento is not None and pagamento.estado == EstadoPagamento.RETIDO:
         estornar_integral(db, pagamento, estado_vaga=EstadoVaga.FALTA)
@@ -467,7 +549,15 @@ def liberar_parcialmente_sem_validacao(db: Session) -> int:
         pagamento = pagamento_da_vaga(db, vaga)
         if pagamento is None or pagamento.estado != EstadoPagamento.RETIDO:
             continue
-        liberar_parcial(db, pagamento, percentual)
+        try:
+            liberar_parcial(db, pagamento, percentual)
+        except ValueError:
+            logger.error(
+                "Percentual de liberação parcial inválido (%s); vaga %s ignorada.",
+                percentual,
+                vaga.id,
+            )
+            continue
         alteradas += 1
     return alteradas
 
@@ -483,11 +573,7 @@ def expirar_pagamentos(db: Session) -> int:
     for pagamento in pendentes:
         if pagamento.expira_em is None or como_utc(pagamento.expira_em) > instante:
             continue
-        pagamento.estado = EstadoPagamento.EXPIRADO
-        vaga = db.get(Vaga, pagamento.vaga_id)
-        if vaga is not None and vaga.estado == EstadoVaga.AGUARDANDO_PAGAMENTO:
-            vaga.estado = EstadoVaga.PUBLICADA
-            vaga.profissional_id = None
+        _expirar(db, pagamento)
         alterados += 1
     if alterados:
         db.commit()
