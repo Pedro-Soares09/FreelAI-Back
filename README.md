@@ -83,6 +83,23 @@ Rotas administrativas (exigem conta com papel `admin`):
   registradas com `@varredura("nome")` em `app/services/varreduras.py`.
 - `GET /api/v1/admin/configuracoes`: valores efetivos do perfil atual.
 
+## Match
+
+`app/services/match.py` escolhe os profissionais convidados para uma vaga:
+
+- `elegiveis(db, vaga)`: conta ativa, perfil verificado, categoria da vaga, distância dentro do
+  raio (limitado por `raio_maximo_km`), comprovações exigidas pela categoria (experiência para
+  risco médio ou alto, qualificação e EPI), agenda livre e sem convite anterior na vaga.
+- `pontuar(db, vaga, profissional)`: nota de 0 a 1 combinando localização, habilidades,
+  reputação e preço com os pesos `peso_*` da configuração.
+- `selecionar_top3(db, vaga)`: os dois melhores mais o melhor profissional com selo Novo
+  (`servicos_para_deixar_de_ser_novo`), ordenados por pontuação.
+- `gerar_rodada(db, vaga)`: grava os convites da rodada; recusa com `rodada_em_andamento` (409)
+  enquanto houver convite da rodada atual sem resposta.
+
+A distância usa a fórmula de Haversine (`app/services/geo.py`), com uma caixa de latitude e
+longitude como pré-filtro no SQL.
+
 ## Estrutura
 
 ```
