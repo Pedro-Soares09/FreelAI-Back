@@ -3,11 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.config import settings
-from app.db import Base, engine
 from app.routers import auth, mock
-
-# Criação provisória das tabelas existentes, até as migrações assumirem o esquema.
-Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="FreelAI Back",
