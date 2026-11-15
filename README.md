@@ -26,6 +26,23 @@ A API fica em `http://localhost:8000` e a documentação interativa em
 Sem Docker, defina `DATABASE_URL=sqlite:///./freelai.db` no `.env` e rode os mesmos comandos
 a partir de `alembic upgrade head`.
 
+## Autenticação
+
+Rotas em `/api/v1/auth`:
+
+- `POST /registro`: cria a conta (nasce com estado `pendente`).
+- `POST /login`: devolve `access_token` (curto) e `refresh_token` (longo).
+- `POST /refresh`: troca um `refresh_token` válido por um novo par de tokens.
+- `GET /me`: dados da conta, perfis cadastrados, perfil ativo e se está verificado.
+- `PUT /perfil-ativo`: alterna entre `profissional` e `contratante` na mesma conta.
+
+Rotas protegidas recebem `Authorization: Bearer <access_token>`. Dependências disponíveis em
+`app/deps.py`: `usuario_atual`, `exige_conta_ativa`, `exige_perfil(TipoPerfil.X)` e `exige_admin`.
+Contas suspensas e banidas recebem 403 com `codigo` e, quando houver, `retorno_em`.
+
+As rotas `POST /register`, `POST /login` e `GET /me` da versão anterior continuam disponíveis
+até o front migrar para `/api/v1/auth`.
+
 ## Perfis de execução
 
 A variável `PERFIL` escolhe o conjunto de prazos usado pela API:
