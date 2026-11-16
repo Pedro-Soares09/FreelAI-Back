@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: freelai-db
+    environment:
+      POSTGRES_USER: freelai
+      POSTGRES_PASSWORD: freelai
+      POSTGRES_DB: freelai
+    ports:
+      - "5432:5432"
+    volumes:
+      - freelai-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U freelai -d freelai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # API em contêiner, ligada ao banco do serviço acima. Requer SECRET_KEY no ambiente ou no .env
+  # (mínimo de 32 caracteres). Para desenvolver sem contêiner, suba só o `db`.
+  api:
+    build: .
+    profiles: ["api"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://freelai:freelai@db:5432/freelai
+      SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY com pelo menos 32 caracteres}
+      PERFIL: ${PERFIL:-producao}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
+    ports:
+      - "8000:8000"
+
+volumes:
+  freelai-db-data:
