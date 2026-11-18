@@ -13,7 +13,6 @@ from app.api.v1.schemas.integracao import (
     ConversaResumo,
     DadosAcordo,
     PontoMapa,
-    VagaResumo,
 )
 
 router = APIRouter()
@@ -25,13 +24,6 @@ def _marcar_stub(resposta: Response) -> None:
 
 def _exemplo(modelo) -> dict:
     return modelo.model_config["json_schema_extra"]["examples"][0]
-
-
-@router.get("/vagas/{vaga_id}", response_model=VagaResumo, tags=["vagas"])
-def detalhar_vaga(vaga_id: int, resposta: Response) -> dict:
-    """Detalhe de uma vaga (resposta de exemplo)."""
-    _marcar_stub(resposta)
-    return {**_exemplo(VagaResumo), "id": vaga_id}
 
 
 @router.get("/vagas/{vaga_id}/acordo", response_model=DadosAcordo, tags=["vagas"])

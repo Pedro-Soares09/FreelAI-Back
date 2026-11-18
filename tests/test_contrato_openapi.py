@@ -30,7 +30,7 @@ def test_contrato_versionado_esta_em_dia():
 
 @pytest.mark.parametrize(
     "schema",
-    ["UsuarioAtual", "VagaResumo", "ConversaResumo", "DadosAcordo", "PontoMapa"],
+    ["UsuarioAtual", "ConversaResumo", "DadosAcordo", "PontoMapa"],
 )
 def test_pontos_de_integracao_tem_schema_com_exemplo(schema):
     componentes = app.openapi()["components"]["schemas"]
@@ -60,15 +60,13 @@ def test_operacoes_tem_identificadores_unicos():
 def test_stubs_respondem_com_o_exemplo_e_o_cabecalho():
     cliente = TestClient(app)
 
-    vaga = cliente.get("/api/v1/vagas/42")
     acordo = cliente.get("/api/v1/vagas/42/acordo")
     conversa = cliente.get("/api/v1/conversas/9")
     mapa = cliente.get("/api/v1/mapa/pontos?tipo=profissional&raio_km=10")
 
-    for resposta in (vaga, acordo, conversa, mapa):
+    for resposta in (acordo, conversa, mapa):
         assert resposta.status_code == 200
         assert resposta.headers["x-stub"] == "true"
-    assert vaga.json()["id"] == 42
     assert acordo.json()["valor_liquido_profissional"] == "135.00"
     assert conversa.json()["vaga_id"] == 42
     assert {ponto["tipo"] for ponto in mapa.json()} == {"profissional"}
