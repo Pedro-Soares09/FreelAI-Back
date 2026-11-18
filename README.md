@@ -61,10 +61,34 @@ Rotas provisórias (`app/api/v1/stubs.py`) devolvem dados de exemplo, com o cabe
 
 - `GET /api/v1/vagas/{vaga_id}`
 - `GET /api/v1/vagas/{vaga_id}/acordo`
-- `GET /api/v1/conversas/{conversa_id}`
 - `GET /api/v1/mapa/pontos`
 
 O campo `verificado` vem de `GET /api/v1/auth/me`.
+
+## Chat e conversas
+
+A conversa nasce somente no aceite do convite (`abrir_conversa_no_aceite`, 1 por vaga) e mantém o
+vínculo entre `vaga_id` e `conversa_id`. Fecha para escrita automaticamente quando a vaga cai
+(`expirada`, `cancelada`, `falta`, `reembolsada` ou devolvida à publicação) ou é encerrada
+financeiramente (`liberada`, `liberada_parcial`).
+
+Como o navegador não envia cabeçalhos no handshake do WebSocket, o token JWT vai na query string
+(`?token=<access_token>`) e é validado antes do `accept()`. Falha de autenticação fecha com código
+`4401`; usuário que não faz parte da vaga fecha com `4403`; conversa inexistente fecha com `4404`.
+
+Rotas (tag `conversas`):
+
+- `GET /api/v1/conversas`: lista as conversas do usuário com `outra_parte`, `ultima_mensagem` e
+  contagem de `nao_lidas`.
+- `GET /api/v1/conversas/{conversa_id}`: resumo da conversa com `vaga_id` e estado `aberta`.
+- `GET /api/v1/vagas/{vaga_id}/conversa`: ponto de integração que resolve a conversa a partir do
+  `vaga_id`.
+- `GET /api/v1/conversas/{conversa_id}/mensagens`: histórico de mensagens em ordem cronológica.
+- `POST /api/v1/conversas/{conversa_id}/mensagens`: persiste mensagem (`texto` e/ou `anexo_url`) e
+  transmite em tempo real aos conectados.
+- `POST /api/v1/conversas/{conversa_id}/visto`: marca como lidas as mensagens recebidas da outra
+  parte.
+- `WS /api/v1/conversas/{conversa_id}/ws?token=<jwt>`: canal em tempo real com broadcast em memória.
 
 ## Pagamento
 
