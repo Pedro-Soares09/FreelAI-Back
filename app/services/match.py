@@ -34,7 +34,7 @@ from app.models import (
     Vaga,
     categorias_profissional,
 )
-from app.services import configuracao
+from app.services import configuracao, notificacoes
 from app.services.geo import caixa_para_raio, distancia_km
 from app.tempo import agora, como_utc
 
@@ -423,4 +423,5 @@ def gerar_rodada(db: Session, vaga: Vaga) -> list[Convite]:
         ) from None
     for convite in convites:
         db.refresh(convite)
+    notificacoes.notificar_selecionados_top3(db, vaga, convites)
     return convites

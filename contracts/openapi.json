@@ -89,6 +89,47 @@
         "title": "Body_arquivos_enviar_arquivo",
         "type": "object"
       },
+      "CentralNotificacoes": {
+        "description": "Resposta do polling REST da central de notificações: lista visível e total de não lidas.",
+        "examples": [
+          {
+            "itens": [
+              {
+                "criado_em": "2026-11-20T14:00:00Z",
+                "id": 10,
+                "lida": false,
+                "mensagem": "Sua conta está entre os 3 profissionais sugeridos para a vaga.",
+                "tipo": "selecionado_top3",
+                "titulo": "Você foi selecionado para uma vaga",
+                "usuario_id": 7,
+                "vaga_id": 42,
+                "visivel_em": "2026-11-20T14:02:00Z"
+              }
+            ],
+            "nao_lidas": 1
+          }
+        ],
+        "properties": {
+          "itens": {
+            "items": {
+              "$ref": "#/components/schemas/NotificacaoDetalhe"
+            },
+            "title": "Itens",
+            "type": "array"
+          },
+          "nao_lidas": {
+            "description": "Total de notificações já visíveis e ainda não lidas.",
+            "title": "Nao Lidas",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nao_lidas",
+          "itens"
+        ],
+        "title": "CentralNotificacoes",
+        "type": "object"
+      },
       "ConfiguracoesEfetivas": {
         "properties": {
           "perfil": {
@@ -108,6 +149,25 @@
           "valores"
         ],
         "title": "ConfiguracoesEfetivas",
+        "type": "object"
+      },
+      "ContagemNaoLidas": {
+        "description": "Quantidade de notificações visíveis ainda não lidas pelo usuário.",
+        "examples": [
+          {
+            "nao_lidas": 2
+          }
+        ],
+        "properties": {
+          "nao_lidas": {
+            "title": "Nao Lidas",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nao_lidas"
+        ],
+        "title": "ContagemNaoLidas",
         "type": "object"
       },
       "ConversaResumo": {
@@ -530,6 +590,100 @@
         "title": "MensagemResumo",
         "type": "object"
       },
+      "NotificacaoDetalhe": {
+        "description": "Notificação já visível ao usuário na central do aplicativo.",
+        "examples": [
+          {
+            "criado_em": "2026-11-20T14:00:00Z",
+            "id": 10,
+            "lida": false,
+            "mensagem": "Sua conta está entre os 3 profissionais sugeridos para a vaga.",
+            "tipo": "selecionado_top3",
+            "titulo": "Você foi selecionado para uma vaga",
+            "usuario_id": 7,
+            "vaga_id": 42,
+            "visivel_em": "2026-11-20T14:02:00Z"
+          }
+        ],
+        "properties": {
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lida": {
+            "description": "Verdadeiro quando `lida_em` está preenchido.",
+            "title": "Lida",
+            "type": "boolean"
+          },
+          "lida_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lida Em"
+          },
+          "mensagem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mensagem"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          },
+          "titulo": {
+            "title": "Titulo",
+            "type": "string"
+          },
+          "usuario_id": {
+            "title": "Usuario Id",
+            "type": "integer"
+          },
+          "vaga_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vaga Id"
+          },
+          "visivel_em": {
+            "format": "date-time",
+            "title": "Visivel Em",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "usuario_id",
+          "tipo",
+          "titulo",
+          "visivel_em",
+          "lida",
+          "criado_em"
+        ],
+        "title": "NotificacaoDetalhe",
+        "type": "object"
+      },
       "PagamentoDetalhe": {
         "description": "Estado da cobrança Pix de uma vaga, com a divisão prevista e o livro de lançamentos.",
         "examples": [
@@ -934,6 +1088,38 @@
           "perfil"
         ],
         "title": "RespostaSaude",
+        "type": "object"
+      },
+      "ResultadoLeituraTodas": {
+        "description": "Quantidade de notificações visíveis marcadas como lidas em lote.",
+        "examples": [
+          {
+            "lida_em": "2026-11-20T14:10:00Z",
+            "marcadas": 3
+          }
+        ],
+        "properties": {
+          "lida_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lida Em"
+          },
+          "marcadas": {
+            "title": "Marcadas",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "marcadas"
+        ],
+        "title": "ResultadoLeituraTodas",
         "type": "object"
       },
       "ResultadoVarredura": {
@@ -1756,6 +1942,159 @@
         "summary": "Listar Pontos Do Mapa",
         "tags": [
           "mapa"
+        ]
+      }
+    },
+    "/api/v1/notificacoes": {
+      "get": {
+        "description": "Polling REST da central de notificações (exibe somente as cujo `visivel_em <= agora()`).",
+        "operationId": "notificacoes_listar_notificacoes",
+        "parameters": [
+          {
+            "description": "Quando verdadeiro, retorna apenas as notificações ainda não lidas.",
+            "in": "query",
+            "name": "apenas_nao_lidas",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Quando verdadeiro, retorna apenas as notificações ainda não lidas.",
+              "title": "Apenas Nao Lidas",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CentralNotificacoes"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Notificacoes",
+        "tags": [
+          "notificacoes"
+        ]
+      }
+    },
+    "/api/v1/notificacoes/ler-todas": {
+      "post": {
+        "description": "Marca como lidas todas as notificações já visíveis do usuário.",
+        "operationId": "notificacoes_marcar_todas_lidas",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoLeituraTodas"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Marcar Todas Lidas",
+        "tags": [
+          "notificacoes"
+        ]
+      }
+    },
+    "/api/v1/notificacoes/nao-lidas": {
+      "get": {
+        "description": "Quantidade de notificações já visíveis e ainda não lidas pelo usuário.",
+        "operationId": "notificacoes_consultar_contagem_nao_lidas",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContagemNaoLidas"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Consultar Contagem Nao Lidas",
+        "tags": [
+          "notificacoes"
+        ]
+      }
+    },
+    "/api/v1/notificacoes/{notificacao_id}/lida": {
+      "post": {
+        "description": "Marca uma notificação visível como lida e registra `lida_em`.",
+        "operationId": "notificacoes_marcar_notificacao_como_lida",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificacao_id",
+            "required": true,
+            "schema": {
+              "title": "Notificacao Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificacaoDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Marcar Notificacao Como Lida",
+        "tags": [
+          "notificacoes"
         ]
       }
     },
