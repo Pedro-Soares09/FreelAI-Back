@@ -140,6 +140,27 @@ Rotas administrativas (exigem conta com papel `admin`):
 A distância usa a fórmula de Haversine (`app/services/geo.py`), com uma caixa de latitude e
 longitude como pré-filtro no SQL.
 
+## Notificações no app (central, Pro imediato e atraso de 2 min)
+
+A central de notificações (`app/services/notificacoes.py`) entrega alertas por polling REST (sem
+e-mail e sem WebSocket no MVP). Cada notificação é gravada com `visivel_em`:
+
+- **Plano Pro**: `visivel_em = agora()` (visibilidade imediata).
+- **Demais contas**: `visivel_em = agora() + notificacao_atraso_min` (2 minutos em `producao` e 0
+  no perfil `demo`).
+
+Eventos emitidos: `selecionado_top3`, `convite_escolhido`, `convite_aceito`, `contrato_pronto`,
+`pagamento_retido`, `lembrete_confirmacao` (varredura `lembretes_confirmacao`),
+`pagamento_liberado`, `avaliacao_pendente` e `denuncia_decidida`.
+
+Rotas (tag `notificacoes`):
+
+- `GET /api/v1/notificacoes`: lista as notificações cujo `visivel_em <= agora()` e informa
+  `nao_lidas`.
+- `GET /api/v1/notificacoes/nao-lidas`: contagem rápida de notificações visíveis não lidas.
+- `POST /api/v1/notificacoes/{notificacao_id}/lida`: marca uma notificação visível como lida.
+- `POST /api/v1/notificacoes/ler-todas`: marca todas as notificações visíveis como lidas.
+
 ## Estrutura
 
 ```

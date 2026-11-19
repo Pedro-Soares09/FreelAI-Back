@@ -60,6 +60,10 @@ def pasta_uploads_isolada(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def relogio_real():
-    """Garante que nenhum teste vaze um relógio fixado para o seguinte."""
+    """Garante que nenhum teste vaze um relógio fixado ou plano Pro em memória."""
+    from app.services.notificacoes import limpar_planos_pro
+
+    limpar_planos_pro()
     yield
+    limpar_planos_pro()
     restaurar_relogio()
