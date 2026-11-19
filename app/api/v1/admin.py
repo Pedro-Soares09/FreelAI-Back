@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.api.v1.schemas.denuncias import DecisaoDenunciaEntrada, DenunciaFilaAdmin
 from app.db import get_db
 from app.deps import exige_admin
-from app.services import configuracao, varreduras
+from app.models import EstadoDenuncia, OrigemDenuncia
+from app.services import configuracao, denuncias, varreduras
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(exige_admin)])
 
@@ -29,3 +31,29 @@ def varrer_prazos(db: Session = Depends(get_db)) -> dict:
 def consultar_configuracoes(db: Session = Depends(get_db)) -> ConfiguracoesEfetivas:
     """Prazos, pesos e limites em vigor para o perfil de execução atual."""
     return ConfiguracoesEfetivas(perfil=configuracao.perfil_atual(), valores=configuracao.todas(db))
+
+
+@router.get("/denuncias", response_model=list[DenunciaFilaAdmin])
+def listar_fila_de_denuncias(
+    estado: EstadoDenuncia | None = Query(default=None),
+    origem: OrigemDenuncia | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[DenunciaFilaAdmin]:
+    """Fila de denúncias (manuais e automáticas) com tempo em espera e meta de 48h úteis."""
+    return denuncias.listar_fila_admin(db, estado=estado, origem=origem)
+
+
+@router.post("/denuncias/{denuncia_id}/decisao", response_model=DenunciaFilaAdmin)
+def decidir_denuncia(
+    denuncia_id: int,
+    entrada: DecisaoDenunciaEntrada,
+    db: Session = Depends(get_db),
+) -> DenunciaFilaAdmin:
+    """Decide uma denúncia da fila como procedente ou improcedente, registrando o motivo."""
+    return denuncias.decidir_denuncia(
+        db,
+        denuncia_id,
+        decisao=entrada.decisao,
+        motivo=entrada.motivo,
+    )
+

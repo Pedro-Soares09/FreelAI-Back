@@ -336,6 +336,377 @@
         "title": "DadosAcordo",
         "type": "object"
       },
+      "DecisaoDenunciaEntrada": {
+        "description": "Decisão administrativa sobre uma denúncia aberta (procedente ou improcedente + motivo).",
+        "properties": {
+          "decisao": {
+            "description": "Resultado da análise da denúncia.",
+            "enum": [
+              "procedente",
+              "improcedente"
+            ],
+            "examples": [
+              "procedente"
+            ],
+            "title": "Decisao",
+            "type": "string"
+          },
+          "motivo": {
+            "description": "Justificativa obrigatória da decisão administrativa.",
+            "examples": [
+              "Confirmada tentativa de negociação fora da plataforma no histórico."
+            ],
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Motivo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decisao",
+          "motivo"
+        ],
+        "title": "DecisaoDenunciaEntrada",
+        "type": "object"
+      },
+      "DenunciaEntrada": {
+        "description": "Dados enviados por um usuário para denunciar outro (a partir do perfil, vaga ou chat).",
+        "properties": {
+          "conversa_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ID da conversa do chat relacionada à denúncia, quando houver.",
+            "examples": [
+              9
+            ],
+            "title": "Conversa Id"
+          },
+          "denunciado_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ID do usuário denunciado. Opcional quando `conversa_id` ou `vaga_id` for informado (inferido automaticamente como a outra parte).",
+            "examples": [
+              7
+            ],
+            "title": "Denunciado Id"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Relato detalhado do ocorrido.",
+            "examples": [
+              "Solicitou pagamento por fora da plataforma durante a conversa."
+            ],
+            "title": "Descricao"
+          },
+          "motivo": {
+            "description": "Motivo principal da denúncia.",
+            "examples": [
+              "comportamento_inadequado"
+            ],
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Motivo",
+            "type": "string"
+          },
+          "vaga_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ID da vaga relacionada à denúncia, quando houver.",
+            "examples": [
+              42
+            ],
+            "title": "Vaga Id"
+          }
+        },
+        "required": [
+          "motivo"
+        ],
+        "title": "DenunciaEntrada",
+        "type": "object"
+      },
+      "DenunciaFilaAdmin": {
+        "description": "Item da fila de denúncias na administração, com tempo em espera e meta de 48h úteis.",
+        "examples": [
+          {
+            "acima_da_meta": false,
+            "conversa_id": 9,
+            "criado_em": "2026-11-20T14:00:00Z",
+            "denunciado_id": 7,
+            "denunciante_id": 3,
+            "denuncias_procedentes_acumuladas": 0,
+            "descricao": "Solicitou pagamento por fora da plataforma.",
+            "estado": "aberta",
+            "id": 1,
+            "meta_horas_uteis": 48,
+            "motivo": "comportamento_inadequado",
+            "origem": "usuario",
+            "tempo_espera_horas_uteis": 2.0,
+            "tempo_espera_minutos": 120,
+            "vaga_id": 42
+          }
+        ],
+        "properties": {
+          "acima_da_meta": {
+            "description": "Verdadeiro quando o tempo em horas úteis ultrapassou a meta de 48h úteis.",
+            "title": "Acima Da Meta",
+            "type": "boolean"
+          },
+          "conversa_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversa Id"
+          },
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "decidido_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidido Em"
+          },
+          "decisao_motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decisao Motivo"
+          },
+          "denunciado_id": {
+            "title": "Denunciado Id",
+            "type": "integer"
+          },
+          "denunciante_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Autor da denúncia (nulo quando gerada automaticamente pelo chat).",
+            "title": "Denunciante Id"
+          },
+          "denuncias_procedentes_acumuladas": {
+            "default": 0,
+            "description": "Total de denúncias procedentes acumuladas pelo denunciado.",
+            "title": "Denuncias Procedentes Acumuladas",
+            "type": "integer"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoDenuncia"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "meta_horas_uteis": {
+            "default": 48,
+            "description": "Meta de atendimento da fila em horas úteis (48h úteis).",
+            "title": "Meta Horas Uteis",
+            "type": "integer"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "origem": {
+            "$ref": "#/components/schemas/OrigemDenuncia"
+          },
+          "tempo_espera_horas_uteis": {
+            "description": "Horas úteis acumuladas em espera (segunda a sexta-feira).",
+            "title": "Tempo Espera Horas Uteis",
+            "type": "number"
+          },
+          "tempo_espera_minutos": {
+            "description": "Tempo total em espera (em minutos) desde a abertura até a decisão ou agora.",
+            "title": "Tempo Espera Minutos",
+            "type": "integer"
+          },
+          "vaga_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vaga Id"
+          }
+        },
+        "required": [
+          "id",
+          "denunciado_id",
+          "origem",
+          "motivo",
+          "estado",
+          "criado_em",
+          "tempo_espera_minutos",
+          "tempo_espera_horas_uteis",
+          "acima_da_meta"
+        ],
+        "title": "DenunciaFilaAdmin",
+        "type": "object"
+      },
+      "DenunciaPublicaResumo": {
+        "description": "Visão da denúncia para usuários comuns. Nunca expõe `denunciante_id` ao denunciado.",
+        "examples": [
+          {
+            "conversa_id": 9,
+            "criado_em": "2026-11-20T14:00:00Z",
+            "denunciado_id": 7,
+            "descricao": "Solicitou pagamento por fora da plataforma.",
+            "estado": "aberta",
+            "id": 1,
+            "motivo": "comportamento_inadequado",
+            "vaga_id": 42
+          }
+        ],
+        "properties": {
+          "conversa_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversa Id"
+          },
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "decidido_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidido Em"
+          },
+          "decisao_motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decisao Motivo"
+          },
+          "denunciado_id": {
+            "title": "Denunciado Id",
+            "type": "integer"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoDenuncia"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "vaga_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vaga Id"
+          }
+        },
+        "required": [
+          "id",
+          "denunciado_id",
+          "motivo",
+          "estado",
+          "criado_em"
+        ],
+        "title": "DenunciaPublicaResumo",
+        "type": "object"
+      },
       "DivisaoValores": {
         "description": "Como o valor total se reparte entre profissional e plataforma.",
         "examples": [
@@ -382,6 +753,15 @@
           "banida"
         ],
         "title": "EstadoConta",
+        "type": "string"
+      },
+      "EstadoDenuncia": {
+        "enum": [
+          "aberta",
+          "procedente",
+          "improcedente"
+        ],
+        "title": "EstadoDenuncia",
         "type": "string"
       },
       "EstadoPagamento": {
@@ -529,6 +909,14 @@
         ],
         "title": "MensagemResumo",
         "type": "object"
+      },
+      "OrigemDenuncia": {
+        "enum": [
+          "usuario",
+          "automatica"
+        ],
+        "title": "OrigemDenuncia",
+        "type": "string"
       },
       "PagamentoDetalhe": {
         "description": "Estado da cobrança Pix de uma vaga, com a divisão prevista e o livro de lançamentos.",
@@ -1278,6 +1666,139 @@
         ]
       }
     },
+    "/api/v1/admin/denuncias": {
+      "get": {
+        "description": "Fila de denúncias (manuais e automáticas) com tempo em espera e meta de 48h úteis.",
+        "operationId": "admin_listar_fila_de_denuncias",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "estado",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EstadoDenuncia"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          },
+          {
+            "in": "query",
+            "name": "origem",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/OrigemDenuncia"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Origem"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DenunciaFilaAdmin"
+                  },
+                  "title": "Response Admin Listar Fila De Denuncias",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Fila De Denuncias",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/denuncias/{denuncia_id}/decisao": {
+      "post": {
+        "description": "Decide uma denúncia da fila como procedente ou improcedente, registrando o motivo.",
+        "operationId": "admin_decidir_denuncia",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "denuncia_id",
+            "required": true,
+            "schema": {
+              "title": "Denuncia Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisaoDenunciaEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DenunciaFilaAdmin"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Decidir Denuncia",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/prazos/varrer": {
       "post": {
         "description": "Força a verificação imediata de tudo que depende de prazo (expirações e liberações).",
@@ -1644,6 +2165,130 @@
         "summary": "Detalhar Conversa",
         "tags": [
           "conversas"
+        ]
+      }
+    },
+    "/api/v1/denuncias": {
+      "get": {
+        "description": "Lista denúncias ligadas ao usuário, sem jamais expor quem denunciou (`denunciante_id`).",
+        "operationId": "denuncias_listar_minhas_denuncias",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DenunciaPublicaResumo"
+                  },
+                  "title": "Response Denuncias Listar Minhas Denuncias",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Minhas Denuncias",
+        "tags": [
+          "denuncias"
+        ]
+      },
+      "post": {
+        "description": "Registra uma denúncia a partir de um perfil, vaga ou conversa. Entra na fila do admin.",
+        "operationId": "denuncias_registrar_denuncia",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DenunciaEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DenunciaPublicaResumo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Registrar Denuncia",
+        "tags": [
+          "denuncias"
+        ]
+      }
+    },
+    "/api/v1/denuncias/{denuncia_id}": {
+      "get": {
+        "description": "Consulta o estado de uma denúncia sem revelar o autor ao denunciado.",
+        "operationId": "denuncias_detalhar_denuncia",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "denuncia_id",
+            "required": true,
+            "schema": {
+              "title": "Denuncia Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DenunciaPublicaResumo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Detalhar Denuncia",
+        "tags": [
+          "denuncias"
         ]
       }
     },
