@@ -8,8 +8,11 @@ handshake do WebSocket, o token JWT vem na query string (`?token=...`) e é vali
 from fastapi import (
     APIRouter,
     Depends,
+    File,
+    Form,
     HTTPException,
     Query,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
     status,
@@ -25,8 +28,8 @@ from app.api.v1.schemas.conversas import (
 from app.api.v1.schemas.integracao import ConversaResumo
 from app.db import get_db
 from app.deps import usuario_atual
-from app.models import Usuario
-from app.services import conversas
+from app.models import TipoArquivo, Usuario
+from app.services import arquivos, conversas
 from app.services.conversas import (
     WS_CODIGO_NAO_AUTENTICADO,
     WS_CODIGO_NAO_ENCONTRADA,
@@ -98,6 +101,53 @@ async def enviar_mensagem(
         usuario,
         texto=entrada.texto,
         anexo_url=entrada.anexo_url,
+    )
+    detalhe = conversas.montar_mensagem(mensagem)
+    await gerenciador_conexoes.transmitir(
+        conversa.id,
+        detalhe.model_dump(mode="json"),
+    )
+    return detalhe
+
+
+@router.post(
+    "/conversas/{conversa_id}/anexos",
+    response_model=MensagemDetalhe,
+    status_code=status.HTTP_201_CREATED,
+)
+async def enviar_anexo_na_conversa(
+    conversa_id: int,
+    arquivo: UploadFile = File(description="Imagem (jpg, png) ou PDF de até 10 MB."),
+    texto: str | None = Form(
+        default=None,
+        description="Legenda opcional enviada junto com o anexo.",
+    ),
+    usuario: Usuario = Depends(usuario_atual),
+    db: Session = Depends(get_db),
+) -> MensagemDetalhe:
+    """Envia anexo (jpg, png ou pdf até 10 MB) na conversa, grava no histórico e transmite."""
+    conversa, vaga = conversas.exigir_participante(db, conversa_id, usuario)
+    if not conversas.sincronizar_estado_conversa(db, conversa, vaga):
+        return conversas.registrar_mensagem(db, conversa, vaga, usuario, texto=texto)
+    if conversas.contem_contato_proibido(texto):
+        return conversas.registrar_mensagem(db, conversa, vaga, usuario, texto=texto)
+
+    registro_arquivo = arquivos.salvar_upload(
+        db,
+        usuario,
+        TipoArquivo.ANEXO,
+        arquivo.file,
+        nome_original=arquivo.filename,
+        content_type=arquivo.content_type,
+    )
+    url = arquivos.url_do_arquivo(registro_arquivo.chave)
+    mensagem = conversas.registrar_mensagem(
+        db,
+        conversa,
+        vaga,
+        usuario,
+        texto=texto,
+        anexo_url=url,
     )
     detalhe = conversas.montar_mensagem(mensagem)
     await gerenciador_conexoes.transmitir(
@@ -192,11 +242,17 @@ async def websocket_conversa(
                 )
             except HTTPException as erro:
                 detalhe_erro = erro.detail if isinstance(erro.detail, dict) else {}
+                extras = {
+                    k: v
+                    for k, v in detalhe_erro.items()
+                    if k not in ("codigo", "mensagem")
+                }
                 await websocket.send_json(
                     {
                         "tipo": "erro",
                         "codigo": detalhe_erro.get("codigo", "erro_ao_enviar"),
                         "mensagem": detalhe_erro.get("mensagem", "Não foi possível enviar."),
+                        **extras,
                     }
                 )
                 continue

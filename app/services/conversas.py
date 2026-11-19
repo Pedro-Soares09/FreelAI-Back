@@ -7,6 +7,7 @@ reembolsada ou devolvida à publicação sem profissional) ou encerra seu ciclo 
 (liberada ou liberada parcial).
 """
 
+import re
 from collections import defaultdict
 from datetime import datetime
 
@@ -22,9 +23,12 @@ from app.erros import erro_http
 from app.models import (
     Avaliacao,
     Conversa,
+    Denuncia,
     EstadoConta,
+    EstadoDenuncia,
     EstadoVaga,
     Mensagem,
+    OrigemDenuncia,
     PerfilContratante,
     PerfilProfissional,
     Usuario,
@@ -37,6 +41,89 @@ from app.tempo import agora, como_utc
 WS_CODIGO_NAO_AUTENTICADO = 4401
 WS_CODIGO_SEM_ACESSO = 4403
 WS_CODIGO_NAO_ENCONTRADA = 4404
+
+LIMITE_TENTATIVAS_CONTATO = 3
+MOTIVO_DENUNCIA_CONTATO = "contato_externo_no_chat"
+AVISO_CONTATO_BLOQUEADO = (
+    "Mensagem bloqueada: não é permitido compartilhar telefone ou WhatsApp no chat."
+)
+
+# Expressão regular para telefone brasileiro (com e sem DDD, celular com 9º dígito ou fixo,
+# com ou sem +55 e separadores como espaço, hífen, ponto ou parênteses).
+PADRAO_TELEFONE_BR = re.compile(
+    r"(?<!\d)"
+    r"(?:\+?55[\s.\-]*)?"
+    r"(?:\(?\d{2}\)?[\s.\-]*)?"
+    r"(?:9[\s.\-]*)?"
+    r"\d{4}[\s.\-]*\d{4}"
+    r"(?!\d)"
+)
+
+# Palavras de aplicativos de mensagem externa proibidas no chat.
+PADRAO_WHATSAPP = re.compile(
+    r"\b(?:whats\s*app|whatsapp|zap(?:\s*zap)?|wpp)\b",
+    re.IGNORECASE,
+)
+
+# Contador em memória de tentativas de envio de contato por (conversa_id, usuario_id).
+_tentativas_contato: dict[tuple[int, int], int] = defaultdict(int)
+
+
+def limpar_tentativas_contato() -> None:
+    """Zera o contador em memória (usado no isolamento entre testes)."""
+    _tentativas_contato.clear()
+
+
+def tentativas_de_contato(conversa_id: int, usuario_id: int) -> int:
+    """Quantidade de tentativas barradas do usuário na conversa."""
+    return _tentativas_contato.get((conversa_id, usuario_id), 0)
+
+
+def contem_contato_proibido(texto: str | None) -> bool:
+    """Verdadeiro quando `texto` traz número de telefone brasileiro ou menção a WhatsApp/zap/wpp."""
+    if not texto:
+        return False
+    return bool(PADRAO_WHATSAPP.search(texto) or PADRAO_TELEFONE_BR.search(texto))
+
+
+def _registrar_tentativa_contato(
+    db: Session,
+    conversa: Conversa,
+    vaga: Vaga,
+    autor: Usuario,
+    texto: str,
+) -> tuple[int, Denuncia | None]:
+    """Incrementa o contador por (conversa, usuário) e abre denúncia automática na 3ª tentativa."""
+    chave = (conversa.id, autor.id)
+    _tentativas_contato[chave] += 1
+    tentativas = _tentativas_contato[chave]
+
+    denuncia = db.scalar(
+        select(Denuncia).where(
+            Denuncia.conversa_id == conversa.id,
+            Denuncia.denunciado_id == autor.id,
+            Denuncia.origem == OrigemDenuncia.AUTOMATICA,
+            Denuncia.motivo == MOTIVO_DENUNCIA_CONTATO,
+        )
+    )
+    if tentativas >= LIMITE_TENTATIVAS_CONTATO and denuncia is None:
+        denuncia = Denuncia(
+            denunciante_id=None,
+            denunciado_id=autor.id,
+            vaga_id=vaga.id,
+            conversa_id=conversa.id,
+            origem=OrigemDenuncia.AUTOMATICA,
+            motivo=MOTIVO_DENUNCIA_CONTATO,
+            descricao=(
+                f"Usuário tentou compartilhar telefone ou WhatsApp {tentativas} vezes "
+                f"na conversa {conversa.id}. Última tentativa: {texto[:160]}"
+            ),
+            estado=EstadoDenuncia.ABERTA,
+        )
+        db.add(denuncia)
+        db.commit()
+        db.refresh(denuncia)
+    return tentativas, denuncia
 
 # Estados da vaga a partir do aceite em que a conversa já pode existir.
 ESTADOS_POS_ACEITE: frozenset[EstadoVaga] = frozenset(
@@ -383,9 +470,21 @@ def registrar_mensagem(
     anexo_limpo = anexo_limpo or None
     if texto_limpo is None and anexo_limpo is None:
         raise erro_http(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "mensagem_vazia",
             "A mensagem precisa ter texto ou anexo.",
+        )
+
+    if contem_contato_proibido(texto_limpo):
+        tentativas, denuncia = _registrar_tentativa_contato(
+            db, conversa, vaga, autor, texto_limpo or ""
+        )
+        raise erro_http(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "contato_externo_bloqueado",
+            AVISO_CONTATO_BLOQUEADO,
+            tentativas=tentativas,
+            denuncia_aberta=denuncia is not None,
         )
 
     mensagem = Mensagem(

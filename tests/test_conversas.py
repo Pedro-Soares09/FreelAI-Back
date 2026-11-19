@@ -2,21 +2,38 @@
 
 import time
 from datetime import timedelta
+from io import BytesIO
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import select
 from starlette.websockets import WebSocketDisconnect
 
-from app.models import Conversa, EstadoConta, EstadoVaga, TipoPerfil
+from app.models import (
+    Conversa,
+    Denuncia,
+    EstadoConta,
+    EstadoDenuncia,
+    EstadoVaga,
+    OrigemDenuncia,
+    PapelUsuario,
+    TipoPerfil,
+)
 from app.security import create_access_token, create_refresh_token
 from app.services import conversas, pagamentos
+from app.services.arquivos import BYTES_POR_MB
 from app.services.conversas import (
+    MOTIVO_DENUNCIA_CONTATO,
     WS_CODIGO_NAO_AUTENTICADO,
     WS_CODIGO_NAO_ENCONTRADA,
     WS_CODIGO_SEM_ACESSO,
 )
 from app.tempo import avancar_relogio
 from tests.fabricas import cabecalho, criar_cenario_vaga, criar_usuario
+
+BYTES_JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xd9"
+BYTES_PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02"
+BYTES_PDF = b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF"
 
 
 def _token(usuario) -> str:
@@ -365,3 +382,209 @@ def test_rotas_rest_recusam_terceiro_e_nao_autenticado(cliente, db):
 
     # Terceiro só vê suas próprias conversas (lista vazia)
     assert cliente.get("/api/v1/conversas", headers=cabecalho(terceiro)).json() == []
+
+
+# --- US46: Bloqueio de telefone e WhatsApp, denúncia automática na 3ª tentativa e anexos -
+
+
+@pytest.mark.parametrize(
+    "texto_proibido",
+    [
+        "me chama no 81 9 9999-9999",
+        "liga no (81) 99999-9999",
+        "meu numero e 81999999999",
+        "fixo 81 3333-4444",
+        "sem ddd 99999-9999 ou 3333-4444",
+        "com ddi +55 (81) 9.8888.7777",
+        "fala comigo no whatsapp",
+        "me manda um WhatsApp depois",
+        "chama no zap",
+        "manda no wpp que respondo",
+    ],
+)
+def test_filtro_barra_telefone_brasileiro_e_palavras_de_whatsapp(
+    cliente, db, texto_proibido
+):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+
+    resposta = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        json={"texto": texto_proibido},
+        headers=cabecalho(cenario.contratante),
+    )
+
+    assert resposta.status_code == 422
+    detalhe = resposta.json()["detail"]
+    assert detalhe["codigo"] == "contato_externo_bloqueado"
+    assert "telefone" in detalhe["mensagem"].lower() or "whatsapp" in detalhe["mensagem"].lower()
+    assert detalhe["tentativas"] == 1
+    assert detalhe["denuncia_aberta"] is False
+
+    # Mensagem barrada não vai para o histórico
+    historico = cliente.get(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        headers=cabecalho(cenario.contratante),
+    )
+    assert historico.json() == []
+
+
+@pytest.mark.parametrize(
+    "texto_permitido",
+    [
+        "Chego às 14h30 no portão 2.",
+        "O serviço dura 180 minutos e o valor é R$ 150,00.",
+        "Levo 3 chaves e 12 parafusos.",
+        "Apartamento 1204, bloco B.",
+    ],
+)
+def test_filtro_permite_mensagens_normais_com_horarios_e_valores(
+    cliente, db, texto_permitido
+):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+
+    resposta = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        json={"texto": texto_permitido},
+        headers=cabecalho(cenario.contratante),
+    )
+
+    assert resposta.status_code == 201
+    assert resposta.json()["texto"] == texto_permitido
+
+
+def test_websocket_barra_telefone_envia_aviso_ao_remetente_e_nao_transmite_ao_outro_lado(
+    cliente, db
+):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+    url_cont = f"/api/v1/conversas/{conversa.id}/ws?token={_token(cenario.contratante)}"
+    url_prof = f"/api/v1/conversas/{conversa.id}/ws?token={_token(cenario.profissional)}"
+
+    with (
+        cliente.websocket_connect(url_cont) as ws_cont,
+        cliente.websocket_connect(url_prof) as ws_prof,
+    ):
+        ws_cont.send_json({"texto": "me chama no 81 9 9999-9999"})
+        aviso = ws_cont.receive_json()
+
+        assert aviso["tipo"] == "erro"
+        assert aviso["codigo"] == "contato_externo_bloqueado"
+        assert aviso["tentativas"] == 1
+        assert aviso["denuncia_aberta"] is False
+
+        # Uma mensagem válida em seguida chega normalmente aos dois lados
+        ws_cont.send_json({"texto": "Combinado pelo chat da plataforma!"})
+        assert ws_cont.receive_json()["texto"] == "Combinado pelo chat da plataforma!"
+        assert ws_prof.receive_json()["texto"] == "Combinado pelo chat da plataforma!"
+
+
+def test_terceira_tentativa_cria_denuncia_automatica_visivel_no_admin(cliente, db):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+    admin = criar_usuario(db, papel=PapelUsuario.ADMIN)
+
+    tentativas_textos = [
+        "me chama no 81 9 9999-9999",
+        "meu zap é esse aí",
+        "fala no wpp 98888-7777",
+    ]
+    respostas = [
+        cliente.post(
+            f"/api/v1/conversas/{conversa.id}/mensagens",
+            json={"texto": texto},
+            headers=cabecalho(cenario.profissional),
+        )
+        for texto in tentativas_textos
+    ]
+
+    assert [r.status_code for r in respostas] == [422, 422, 422]
+    assert [r.json()["detail"]["tentativas"] for r in respostas] == [1, 2, 3]
+    assert [r.json()["detail"]["denuncia_aberta"] for r in respostas] == [
+        False,
+        False,
+        True,
+    ]
+
+    # Contador é isolado por usuário e conversa: contratante na mesma conversa começa na 1ª
+    primeira_contratante = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        json={"texto": "chama no whatsapp"},
+        headers=cabecalho(cenario.contratante),
+    )
+    assert primeira_contratante.json()["detail"]["tentativas"] == 1
+    assert primeira_contratante.json()["detail"]["denuncia_aberta"] is False
+
+    # Verifica registro no banco e visibilidade no endpoint do admin
+    denuncias_db = db.scalars(select(Denuncia)).all()
+    assert len(denuncias_db) == 1
+    denuncia = denuncias_db[0]
+    assert denuncia.denunciante_id is None
+    assert denuncia.denunciado_id == cenario.profissional.id
+    assert denuncia.vaga_id == cenario.vaga.id
+    assert denuncia.conversa_id == conversa.id
+    assert denuncia.origem == OrigemDenuncia.AUTOMATICA
+    assert denuncia.motivo == MOTIVO_DENUNCIA_CONTATO
+    assert denuncia.estado == EstadoDenuncia.ABERTA
+
+    visao_admin = cliente.get(
+        "/api/v1/admin/denuncias?origem=automatica",
+        headers=cabecalho(admin),
+    )
+    assert visao_admin.status_code == 200
+    lista_admin = visao_admin.json()
+    assert len(lista_admin) == 1
+    assert lista_admin[0]["id"] == denuncia.id
+    assert lista_admin[0]["denunciado_id"] == cenario.profissional.id
+    assert lista_admin[0]["conversa_id"] == conversa.id
+    assert lista_admin[0]["vaga_id"] == cenario.vaga.id
+    assert lista_admin[0]["origem"] == "automatica"
+    assert lista_admin[0]["estado"] == "aberta"
+
+
+def test_envio_de_anexo_de_imagem_e_pdf_no_chat_e_recusa_acima_de_10_mb(cliente, db):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+
+    # Anexo PNG válido com legenda
+    envio_png = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/anexos",
+        data={"texto": "Foto do local"},
+        files={"arquivo": ("local.png", BytesIO(BYTES_PNG), "image/png")},
+        headers=cabecalho(cenario.contratante),
+    )
+    assert envio_png.status_code == 201
+    msg_png = envio_png.json()
+    assert msg_png["texto"] == "Foto do local"
+    assert msg_png["anexo_url"].startswith("/api/v1/arquivos/anexo/")
+    assert msg_png["anexo_url"].endswith(".png")
+
+    # Anexo PDF válido sem texto
+    envio_pdf = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/anexos",
+        files={"arquivo": ("planta.pdf", BytesIO(BYTES_PDF), "application/pdf")},
+        headers=cabecalho(cenario.profissional),
+    )
+    assert envio_pdf.status_code == 201
+    msg_pdf = envio_pdf.json()
+    assert msg_pdf["texto"] is None
+    assert msg_pdf["anexo_url"].endswith(".pdf")
+
+    # Anexo acima de 10 MB é recusado com 413 arquivo_muito_grande
+    acima_10_mb = BYTES_JPEG + b"x" * (10 * BYTES_POR_MB - len(BYTES_JPEG) + 1)
+    recusado = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/anexos",
+        files={"arquivo": ("pesado.jpg", BytesIO(acima_10_mb), "image/jpeg")},
+        headers=cabecalho(cenario.contratante),
+    )
+    assert recusado.status_code == 413
+    assert recusado.json()["detail"]["codigo"] == "arquivo_muito_grande"
+
+    # Histórico contém apenas os 2 anexos válidos
+    historico = cliente.get(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        headers=cabecalho(cenario.contratante),
+    ).json()
+    assert len(historico) == 2
+

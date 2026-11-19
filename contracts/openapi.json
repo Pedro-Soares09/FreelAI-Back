@@ -89,6 +89,33 @@
         "title": "Body_arquivos_enviar_arquivo",
         "type": "object"
       },
+      "Body_conversas_enviar_anexo_na_conversa": {
+        "properties": {
+          "arquivo": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Imagem (jpg, png) ou PDF de até 10 MB.",
+            "title": "Arquivo",
+            "type": "string"
+          },
+          "texto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Legenda opcional enviada junto com o anexo.",
+            "title": "Texto"
+          }
+        },
+        "required": [
+          "arquivo"
+        ],
+        "title": "Body_conversas_enviar_anexo_na_conversa",
+        "type": "object"
+      },
       "ConfiguracoesEfetivas": {
         "properties": {
           "perfil": {
@@ -336,6 +363,124 @@
         "title": "DadosAcordo",
         "type": "object"
       },
+      "DenunciaAdminResumo": {
+        "description": "Denúncia (manual ou automática) exibida na fila da administração.",
+        "examples": [
+          {
+            "conversa_id": 9,
+            "criado_em": "2026-11-20T14:15:00Z",
+            "denunciado_id": 7,
+            "descricao": "Usuário tentou compartilhar telefone ou WhatsApp 3 vezes na conversa 9.",
+            "estado": "aberta",
+            "id": 1,
+            "motivo": "contato_externo_no_chat",
+            "origem": "automatica",
+            "vaga_id": 42
+          }
+        ],
+        "properties": {
+          "conversa_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversa Id"
+          },
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "decidido_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidido Em"
+          },
+          "decisao_motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decisao Motivo"
+          },
+          "denunciado_id": {
+            "title": "Denunciado Id",
+            "type": "integer"
+          },
+          "denunciante_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denunciante Id"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoDenuncia"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "origem": {
+            "$ref": "#/components/schemas/OrigemDenuncia"
+          },
+          "vaga_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vaga Id"
+          }
+        },
+        "required": [
+          "id",
+          "denunciado_id",
+          "origem",
+          "motivo",
+          "estado",
+          "criado_em"
+        ],
+        "title": "DenunciaAdminResumo",
+        "type": "object"
+      },
       "DivisaoValores": {
         "description": "Como o valor total se reparte entre profissional e plataforma.",
         "examples": [
@@ -382,6 +527,15 @@
           "banida"
         ],
         "title": "EstadoConta",
+        "type": "string"
+      },
+      "EstadoDenuncia": {
+        "enum": [
+          "aberta",
+          "procedente",
+          "improcedente"
+        ],
+        "title": "EstadoDenuncia",
         "type": "string"
       },
       "EstadoPagamento": {
@@ -641,6 +795,14 @@
         ],
         "title": "MensagemResumo",
         "type": "object"
+      },
+      "OrigemDenuncia": {
+        "enum": [
+          "usuario",
+          "automatica"
+        ],
+        "title": "OrigemDenuncia",
+        "type": "string"
       },
       "PagamentoDetalhe": {
         "description": "Estado da cobrança Pix de uma vaga, com a divisão prevista e o livro de lançamentos.",
@@ -1428,6 +1590,81 @@
         ]
       }
     },
+    "/api/v1/admin/denuncias": {
+      "get": {
+        "description": "Lista as denúncias (incluindo as automáticas abertas pelo bloqueio do chat).",
+        "operationId": "admin_listar_denuncias",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "estado",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EstadoDenuncia"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          },
+          {
+            "in": "query",
+            "name": "origem",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/OrigemDenuncia"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Origem"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DenunciaAdminResumo"
+                  },
+                  "title": "Response Admin Listar Denuncias",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Denuncias",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/prazos/varrer": {
       "post": {
         "description": "Força a verificação imediata de tudo que depende de prazo (expirações e liberações).",
@@ -1828,6 +2065,64 @@
           }
         ],
         "summary": "Detalhar Conversa",
+        "tags": [
+          "conversas"
+        ]
+      }
+    },
+    "/api/v1/conversas/{conversa_id}/anexos": {
+      "post": {
+        "description": "Envia anexo (jpg, png ou pdf até 10 MB) na conversa, grava no histórico e transmite.",
+        "operationId": "conversas_enviar_anexo_na_conversa",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversa_id",
+            "required": true,
+            "schema": {
+              "title": "Conversa Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_conversas_enviar_anexo_na_conversa"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensagemDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Enviar Anexo Na Conversa",
         "tags": [
           "conversas"
         ]

@@ -101,9 +101,16 @@ Rotas (tag `conversas`):
 - `GET /api/v1/conversas/{conversa_id}/mensagens`: histórico de mensagens em ordem cronológica.
 - `POST /api/v1/conversas/{conversa_id}/mensagens`: persiste mensagem (`texto` e/ou `anexo_url`) e
   transmite em tempo real aos conectados.
+- `POST /api/v1/conversas/{conversa_id}/anexos`: valida e salva um anexo (`jpg`, `png` ou `pdf`
+  até 10 MB), cria a mensagem na conversa e transmite pelo WebSocket.
 - `POST /api/v1/conversas/{conversa_id}/visto`: marca como lidas as mensagens recebidas da outra
   parte.
 - `WS /api/v1/conversas/{conversa_id}/ws?token=<jwt>`: canal em tempo real com broadcast em memória.
+
+Mensagens com telefone brasileiro (com ou sem DDD e separadores) ou com as palavras `whatsapp`,
+`zap` e `wpp` são bloqueadas com aviso (`422 contato_externo_bloqueado`). O contador é mantido por
+usuário e conversa, e a 3ª tentativa abre automaticamente uma denúncia (`origem=automatica`),
+visível em `GET /api/v1/admin/denuncias`.
 
 ## Pagamento
 
@@ -146,6 +153,7 @@ Rotas administrativas (exigem conta com papel `admin`):
 - `POST /api/v1/admin/prazos/varrer`: força a execução imediata das varreduras de prazo
   registradas com `@varredura("nome")` em `app/services/varreduras.py`.
 - `GET /api/v1/admin/configuracoes`: valores efetivos do perfil atual.
+- `GET /api/v1/admin/denuncias`: fila de denúncias (manuais e automáticas).
 
 ## Match
 
