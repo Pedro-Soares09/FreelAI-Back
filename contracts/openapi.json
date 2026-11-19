@@ -19,6 +19,76 @@
         "title": "AceitesAcordo",
         "type": "object"
       },
+      "ArquivoEnviado": {
+        "description": "Metadados e URL do arquivo armazenado após o upload.",
+        "examples": [
+          {
+            "criado_em": "2026-11-20T14:00:00Z",
+            "id": 12,
+            "mime_type": "image/jpeg",
+            "tamanho_bytes": 48210,
+            "tipo": "foto",
+            "url": "/api/v1/arquivos/foto/a1b2c3d4e5f60718293a4b5c6d7e8f90.jpg"
+          }
+        ],
+        "properties": {
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "tamanho_bytes": {
+            "title": "Tamanho Bytes",
+            "type": "integer"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoArquivo"
+          },
+          "url": {
+            "description": "URL da API para acessar o arquivo armazenado.",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tipo",
+          "url",
+          "mime_type",
+          "tamanho_bytes",
+          "criado_em"
+        ],
+        "title": "ArquivoEnviado",
+        "type": "object"
+      },
+      "Body_arquivos_enviar_arquivo": {
+        "properties": {
+          "arquivo": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Arquivo em formato jpg, png ou pdf (até 10 MB).",
+            "title": "Arquivo",
+            "type": "string"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoArquivo",
+            "description": "Finalidade do arquivo: foto, selfie, documento, qualificacao, epi ou anexo."
+          }
+        },
+        "required": [
+          "tipo",
+          "arquivo"
+        ],
+        "title": "Body_arquivos_enviar_arquivo",
+        "type": "object"
+      },
       "ConfiguracoesEfetivas": {
         "properties": {
           "perfil": {
@@ -888,6 +958,18 @@
         "title": "ResultadoVarredura",
         "type": "object"
       },
+      "TipoArquivo": {
+        "enum": [
+          "foto",
+          "selfie",
+          "documento",
+          "qualificacao",
+          "epi",
+          "anexo"
+        ],
+        "title": "TipoArquivo",
+        "type": "string"
+      },
       "TipoLancamento": {
         "enum": [
           "retencao",
@@ -1220,6 +1302,107 @@
         "summary": "Varrer Prazos",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/api/v1/arquivos": {
+      "post": {
+        "description": "Valida tipo (jpg, png, pdf) e tamanho (até 10 MB), armazena com nome gerado e retorna URL.",
+        "operationId": "arquivos_enviar_arquivo",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_arquivos_enviar_arquivo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArquivoEnviado"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Enviar Arquivo",
+        "tags": [
+          "arquivos"
+        ]
+      }
+    },
+    "/api/v1/arquivos/{tipo}/{nome}": {
+      "get": {
+        "description": "Serve o arquivo armazenado. Documento e selfie exigem ser o dono ou administrador.",
+        "operationId": "arquivos_baixar_arquivo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tipo",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TipoArquivo"
+            }
+          },
+          {
+            "in": "path",
+            "name": "nome",
+            "required": true,
+            "schema": {
+              "title": "Nome",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Baixar Arquivo",
+        "tags": [
+          "arquivos"
         ]
       }
     },

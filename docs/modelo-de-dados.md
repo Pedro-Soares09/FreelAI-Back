@@ -13,6 +13,7 @@ erDiagram
     usuarios ||--o{ mensagens : escreve
     usuarios ||--o{ avaliacoes : avalia
     usuarios ||--o{ denuncias : denuncia
+    usuarios ||--o{ arquivos : envia
 
     perfis_profissionais }o--o| enderecos : "localizado em"
     perfis_profissionais }o--o{ categorias : atua
