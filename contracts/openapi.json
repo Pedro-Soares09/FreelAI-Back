@@ -89,6 +89,33 @@
         "title": "Body_arquivos_enviar_arquivo",
         "type": "object"
       },
+      "Body_conversas_enviar_anexo_na_conversa": {
+        "properties": {
+          "arquivo": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Imagem (jpg, png) ou PDF de até 10 MB.",
+            "title": "Arquivo",
+            "type": "string"
+          },
+          "texto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Legenda opcional enviada junto com o anexo.",
+            "title": "Texto"
+          }
+        },
+        "required": [
+          "arquivo"
+        ],
+        "title": "Body_conversas_enviar_anexo_na_conversa",
+        "type": "object"
+      },
       "ConfiguracoesEfetivas": {
         "properties": {
           "perfil": {
@@ -336,6 +363,124 @@
         "title": "DadosAcordo",
         "type": "object"
       },
+      "DenunciaAdminResumo": {
+        "description": "Denúncia (manual ou automática) exibida na fila da administração.",
+        "examples": [
+          {
+            "conversa_id": 9,
+            "criado_em": "2026-11-20T14:15:00Z",
+            "denunciado_id": 7,
+            "descricao": "Usuário tentou compartilhar telefone ou WhatsApp 3 vezes na conversa 9.",
+            "estado": "aberta",
+            "id": 1,
+            "motivo": "contato_externo_no_chat",
+            "origem": "automatica",
+            "vaga_id": 42
+          }
+        ],
+        "properties": {
+          "conversa_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversa Id"
+          },
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "decidido_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidido Em"
+          },
+          "decisao_motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decisao Motivo"
+          },
+          "denunciado_id": {
+            "title": "Denunciado Id",
+            "type": "integer"
+          },
+          "denunciante_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denunciante Id"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoDenuncia"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "origem": {
+            "$ref": "#/components/schemas/OrigemDenuncia"
+          },
+          "vaga_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vaga Id"
+          }
+        },
+        "required": [
+          "id",
+          "denunciado_id",
+          "origem",
+          "motivo",
+          "estado",
+          "criado_em"
+        ],
+        "title": "DenunciaAdminResumo",
+        "type": "object"
+      },
       "DivisaoValores": {
         "description": "Como o valor total se reparte entre profissional e plataforma.",
         "examples": [
@@ -382,6 +527,15 @@
           "banida"
         ],
         "title": "EstadoConta",
+        "type": "string"
+      },
+      "EstadoDenuncia": {
+        "enum": [
+          "aberta",
+          "procedente",
+          "improcedente"
+        ],
+        "title": "EstadoDenuncia",
         "type": "string"
       },
       "EstadoPagamento": {
@@ -499,6 +653,118 @@
         "title": "LoginEntrada",
         "type": "object"
       },
+      "MensagemDetalhe": {
+        "description": "Mensagem persistida no histórico de uma conversa.",
+        "examples": [
+          {
+            "autor_id": 7,
+            "conversa_id": 9,
+            "enviada_em": "2026-11-19T18:30:00Z",
+            "id": 101,
+            "texto": "Chego às 14h."
+          }
+        ],
+        "properties": {
+          "anexo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anexo Url"
+          },
+          "autor_id": {
+            "title": "Autor Id",
+            "type": "integer"
+          },
+          "conversa_id": {
+            "title": "Conversa Id",
+            "type": "integer"
+          },
+          "enviada_em": {
+            "format": "date-time",
+            "title": "Enviada Em",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lida_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lida Em"
+          },
+          "texto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Texto"
+          }
+        },
+        "required": [
+          "id",
+          "conversa_id",
+          "autor_id",
+          "enviada_em"
+        ],
+        "title": "MensagemDetalhe",
+        "type": "object"
+      },
+      "MensagemEntrada": {
+        "description": "Conteúdo enviado pelo participante no chat (texto, anexo ou ambos).",
+        "properties": {
+          "anexo_url": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "URL de arquivo enviado em `/api/v1/arquivos`.",
+            "examples": [
+              "/api/v1/arquivos/anexo/a1b2c3d4e5f60718293a4b5c6d7e8f90.png"
+            ],
+            "title": "Anexo Url"
+          },
+          "texto": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Texto da mensagem.",
+            "examples": [
+              "Chego às 14h."
+            ],
+            "title": "Texto"
+          }
+        },
+        "title": "MensagemEntrada",
+        "type": "object"
+      },
       "MensagemResumo": {
         "properties": {
           "autor_id": {
@@ -529,6 +795,14 @@
         ],
         "title": "MensagemResumo",
         "type": "object"
+      },
+      "OrigemDenuncia": {
+        "enum": [
+          "usuario",
+          "automatica"
+        ],
+        "title": "OrigemDenuncia",
+        "type": "string"
       },
       "PagamentoDetalhe": {
         "description": "Estado da cobrança Pix de uma vaga, com a divisão prevista e o livro de lançamentos.",
@@ -958,6 +1232,44 @@
         "title": "ResultadoVarredura",
         "type": "object"
       },
+      "ResultadoVisto": {
+        "description": "Quantidade de mensagens recebidas marcadas como vistas.",
+        "examples": [
+          {
+            "conversa_id": 9,
+            "lida_em": "2026-11-19T18:35:00Z",
+            "marcadas": 2
+          }
+        ],
+        "properties": {
+          "conversa_id": {
+            "title": "Conversa Id",
+            "type": "integer"
+          },
+          "lida_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lida Em"
+          },
+          "marcadas": {
+            "title": "Marcadas",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "conversa_id",
+          "marcadas"
+        ],
+        "title": "ResultadoVisto",
+        "type": "object"
+      },
       "TipoArquivo": {
         "enum": [
           "foto",
@@ -1273,6 +1585,81 @@
           }
         ],
         "summary": "Consultar Configuracoes",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/denuncias": {
+      "get": {
+        "description": "Lista as denúncias (incluindo as automáticas abertas pelo bloqueio do chat).",
+        "operationId": "admin_listar_denuncias",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "estado",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EstadoDenuncia"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          },
+          {
+            "in": "query",
+            "name": "origem",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/OrigemDenuncia"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Origem"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DenunciaAdminResumo"
+                  },
+                  "title": "Response Admin Listar Denuncias",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Denuncias",
         "tags": [
           "admin"
         ]
@@ -1604,9 +1991,40 @@
         ]
       }
     },
+    "/api/v1/conversas": {
+      "get": {
+        "description": "Lista as conversas do usuário com a outra parte, última mensagem e total de não lidas.",
+        "operationId": "conversas_listar_conversas",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConversaResumo"
+                  },
+                  "title": "Response Conversas Listar Conversas",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Conversas",
+        "tags": [
+          "conversas"
+        ]
+      }
+    },
     "/api/v1/conversas/{conversa_id}": {
       "get": {
-        "description": "Resumo de uma conversa, com o id da vaga a que pertence (resposta de exemplo).",
+        "description": "Resumo de uma conversa, com o id da vaga a que pertence.",
         "operationId": "conversas_detalhar_conversa",
         "parameters": [
           {
@@ -1641,7 +2059,226 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Detalhar Conversa",
+        "tags": [
+          "conversas"
+        ]
+      }
+    },
+    "/api/v1/conversas/{conversa_id}/anexos": {
+      "post": {
+        "description": "Envia anexo (jpg, png ou pdf até 10 MB) na conversa, grava no histórico e transmite.",
+        "operationId": "conversas_enviar_anexo_na_conversa",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversa_id",
+            "required": true,
+            "schema": {
+              "title": "Conversa Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_conversas_enviar_anexo_na_conversa"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensagemDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Enviar Anexo Na Conversa",
+        "tags": [
+          "conversas"
+        ]
+      }
+    },
+    "/api/v1/conversas/{conversa_id}/mensagens": {
+      "get": {
+        "description": "Histórico completo de mensagens da conversa em ordem cronológica.",
+        "operationId": "conversas_listar_mensagens",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversa_id",
+            "required": true,
+            "schema": {
+              "title": "Conversa Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MensagemDetalhe"
+                  },
+                  "title": "Response Conversas Listar Mensagens",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Mensagens",
+        "tags": [
+          "conversas"
+        ]
+      },
+      "post": {
+        "description": "Persiste uma mensagem na conversa e transmite em tempo real aos conectados no WebSocket.",
+        "operationId": "conversas_enviar_mensagem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversa_id",
+            "required": true,
+            "schema": {
+              "title": "Conversa Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MensagemEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensagemDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Enviar Mensagem",
+        "tags": [
+          "conversas"
+        ]
+      }
+    },
+    "/api/v1/conversas/{conversa_id}/visto": {
+      "post": {
+        "description": "Marca como vistas as mensagens enviadas pela outra parte na conversa.",
+        "operationId": "conversas_marcar_conversa_como_vista",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversa_id",
+            "required": true,
+            "schema": {
+              "title": "Conversa Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoVisto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Marcar Conversa Como Vista",
         "tags": [
           "conversas"
         ]
@@ -1938,6 +2575,54 @@
         "summary": "Confirmar Conclusao",
         "tags": [
           "pagamentos"
+        ]
+      }
+    },
+    "/api/v1/vagas/{vaga_id}/conversa": {
+      "get": {
+        "description": "Ponto de integração entre `vaga_id` e `conversa_id`: devolve a conversa aberta no aceite.",
+        "operationId": "conversas_consultar_conversa_da_vaga",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversaResumo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Consultar Conversa Da Vaga",
+        "tags": [
+          "conversas"
         ]
       }
     },

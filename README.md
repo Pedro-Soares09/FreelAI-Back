@@ -61,7 +61,6 @@ Rotas provisórias (`app/api/v1/stubs.py`) devolvem dados de exemplo, com o cabe
 
 - `GET /api/v1/vagas/{vaga_id}`
 - `GET /api/v1/vagas/{vaga_id}/acordo`
-- `GET /api/v1/conversas/{conversa_id}`
 - `GET /api/v1/mapa/pontos`
 
 O campo `verificado` vem de `GET /api/v1/auth/me`.
@@ -80,6 +79,38 @@ Rotas (tag `arquivos`):
   `anexo`) e `arquivo` via `multipart/form-data`, valida formato e tamanho e devolve a URL.
 - `GET /api/v1/arquivos/{tipo}/{nome}`: serve o arquivo armazenado. Arquivos de `documento` e
   `selfie` exigem autenticação e só são acessíveis pelo dono ou por conta `admin`.
+
+## Chat e conversas
+
+A conversa nasce somente no aceite do convite (`abrir_conversa_no_aceite`, 1 por vaga) e mantém o
+vínculo entre `vaga_id` e `conversa_id`. Fecha para escrita automaticamente quando a vaga cai
+(`expirada`, `cancelada`, `falta`, `reembolsada` ou devolvida à publicação) ou é encerrada
+financeiramente (`liberada`, `liberada_parcial`).
+
+Como o navegador não envia cabeçalhos no handshake do WebSocket, o token JWT vai na query string
+(`?token=<access_token>`) e é validado antes do `accept()`. Falha de autenticação fecha com código
+`4401`; usuário que não faz parte da vaga fecha com `4403`; conversa inexistente fecha com `4404`.
+
+Rotas (tag `conversas`):
+
+- `GET /api/v1/conversas`: lista as conversas do usuário com `outra_parte`, `ultima_mensagem` e
+  contagem de `nao_lidas`.
+- `GET /api/v1/conversas/{conversa_id}`: resumo da conversa com `vaga_id` e estado `aberta`.
+- `GET /api/v1/vagas/{vaga_id}/conversa`: ponto de integração que resolve a conversa a partir do
+  `vaga_id`.
+- `GET /api/v1/conversas/{conversa_id}/mensagens`: histórico de mensagens em ordem cronológica.
+- `POST /api/v1/conversas/{conversa_id}/mensagens`: persiste mensagem (`texto` e/ou `anexo_url`) e
+  transmite em tempo real aos conectados.
+- `POST /api/v1/conversas/{conversa_id}/anexos`: valida e salva um anexo (`jpg`, `png` ou `pdf`
+  até 10 MB), cria a mensagem na conversa e transmite pelo WebSocket.
+- `POST /api/v1/conversas/{conversa_id}/visto`: marca como lidas as mensagens recebidas da outra
+  parte.
+- `WS /api/v1/conversas/{conversa_id}/ws?token=<jwt>`: canal em tempo real com broadcast em memória.
+
+Mensagens com telefone brasileiro (com ou sem DDD e separadores) ou com as palavras `whatsapp`,
+`zap` e `wpp` são bloqueadas com aviso (`422 contato_externo_bloqueado`). O contador é mantido por
+usuário e conversa, e a 3ª tentativa abre automaticamente uma denúncia (`origem=automatica`),
+visível em `GET /api/v1/admin/denuncias`.
 
 ## Pagamento
 
@@ -122,6 +153,7 @@ Rotas administrativas (exigem conta com papel `admin`):
 - `POST /api/v1/admin/prazos/varrer`: força a execução imediata das varreduras de prazo
   registradas com `@varredura("nome")` em `app/services/varreduras.py`.
 - `GET /api/v1/admin/configuracoes`: valores efetivos do perfil atual.
+- `GET /api/v1/admin/denuncias`: fila de denúncias (manuais e automáticas).
 
 ## Match
 

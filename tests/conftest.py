@@ -60,6 +60,10 @@ def pasta_uploads_isolada(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def relogio_real():
-    """Garante que nenhum teste vaze um relógio fixado para o seguinte."""
+    """Garante que nenhum teste vaze um relógio fixado ou estado de chat em memória."""
+    from app.services.conversas import limpar_tentativas_contato
+
+    limpar_tentativas_contato()
     yield
+    limpar_tentativas_contato()
     restaurar_relogio()
