@@ -336,6 +336,454 @@
         "title": "DadosAcordo",
         "type": "object"
       },
+      "DecisaoDisputaEntrada": {
+        "description": "Decisão administrativa sobre uma disputa aberta (reembolso total, parcial ou integral).",
+        "properties": {
+          "decisao": {
+            "description": "Resultado da disputa: `reembolso_total` (estorna 100%), `reembolso_parcial` (libera parcela ao profissional e estorna o resto) ou `pagamento_integral` (libera 100% ao profissional).",
+            "enum": [
+              "reembolso_total",
+              "reembolso_parcial",
+              "pagamento_integral"
+            ],
+            "examples": [
+              "reembolso_parcial"
+            ],
+            "title": "Decisao",
+            "type": "string"
+          },
+          "motivo": {
+            "description": "Justificativa obrigatória da decisão administrativa.",
+            "examples": [
+              "Metade do serviço foi comprovadamente executada pelas fotos do chat."
+            ],
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Motivo",
+            "type": "string"
+          },
+          "percentual_profissional": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Alternativa a `percentual_reembolso`: percentual (de 1 a 99) liberado ao profissional em `reembolso_parcial` (o resto é estornado).",
+            "examples": [
+              60
+            ],
+            "title": "Percentual Profissional"
+          },
+          "percentual_reembolso": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Percentual (de 1 a 99) estornado ao contratante quando `decisao = reembolso_parcial`. O restante `(100 - percentual_reembolso)%` é liberado ao profissional.",
+            "examples": [
+              40
+            ],
+            "title": "Percentual Reembolso"
+          }
+        },
+        "required": [
+          "decisao",
+          "motivo"
+        ],
+        "title": "DecisaoDisputaEntrada",
+        "type": "object"
+      },
+      "DisputaAdminDetalhe": {
+        "description": "Visão completa da aba de disputas no admin: disputa, pagamento, chat e anexos da vaga.",
+        "examples": [
+          {
+            "aberta_por_id": 3,
+            "acima_da_meta": false,
+            "anexos": [
+              "/api/v1/arquivos/anexo/foto1.jpg"
+            ],
+            "chat": [
+              {
+                "anexo_url": "/api/v1/arquivos/anexo/foto1.jpg",
+                "autor_id": 3,
+                "conversa_id": 9,
+                "enviada_em": "2026-11-20T17:50:00Z",
+                "id": 1,
+                "texto": "Segue foto de como ficou."
+              }
+            ],
+            "contratante_usuario_id": 3,
+            "conversa_id": 9,
+            "criado_em": "2026-11-20T18:00:00Z",
+            "descricao": "Serviço interrompido pela metade.",
+            "estado": "aberta",
+            "id": 3,
+            "meta_horas_uteis": 48,
+            "pagamento": {
+              "atualizado_em": "2026-11-20T18:10:00Z",
+              "codigo_pix": "PIX-SIM-000005-1A2B3C4D5E6F7A8B9C0D",
+              "criado_em": "2026-11-20T13:50:00Z",
+              "divisao": {
+                "percentual_taxa": "10",
+                "taxa_plataforma": "15.00",
+                "valor_liquido_profissional": "135.00",
+                "valor_total": "150.00"
+              },
+              "estado": "liberado",
+              "expira_em": "2026-11-20T14:05:00Z",
+              "id": 5,
+              "lancamentos": [
+                {
+                  "criado_em": "2026-11-20T13:50:00Z",
+                  "descricao": "Pix recebido e retido até a conclusão do serviço",
+                  "id": 1,
+                  "tipo": "retencao",
+                  "valor": "150.00"
+                },
+                {
+                  "criado_em": "2026-11-20T18:10:00Z",
+                  "descricao": "Liberação integral",
+                  "id": 2,
+                  "tipo": "liberacao_profissional",
+                  "valor": "135.00"
+                },
+                {
+                  "criado_em": "2026-11-20T18:10:00Z",
+                  "descricao": "Taxa da plataforma",
+                  "id": 3,
+                  "tipo": "taxa_plataforma",
+                  "valor": "15.00"
+                }
+              ],
+              "metodo": "pix",
+              "saldo_retido": "0.00",
+              "vaga_estado": "liberada",
+              "vaga_id": 42
+            },
+            "profissional_usuario_id": 7,
+            "tempo_espera_horas_uteis": 1.0,
+            "tempo_espera_minutos": 60,
+            "vaga_estado": "em_disputa",
+            "vaga_id": 42,
+            "vaga_titulo": "Montagem de guarda-roupa"
+          }
+        ],
+        "properties": {
+          "aberta_por_id": {
+            "title": "Aberta Por Id",
+            "type": "integer"
+          },
+          "acima_da_meta": {
+            "description": "Verdadeiro quando o tempo em horas úteis ultrapassou a meta de 48h úteis.",
+            "title": "Acima Da Meta",
+            "type": "boolean"
+          },
+          "anexos": {
+            "description": "Lista de URLs de anexos enviados na conversa da vaga.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Anexos",
+            "type": "array"
+          },
+          "chat": {
+            "description": "Histórico completo de mensagens da conversa da vaga.",
+            "items": {
+              "$ref": "#/components/schemas/MensagemDisputaAdmin"
+            },
+            "title": "Chat",
+            "type": "array"
+          },
+          "contratante_usuario_id": {
+            "title": "Contratante Usuario Id",
+            "type": "integer"
+          },
+          "conversa_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversa Id"
+          },
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "decidido_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidido Em"
+          },
+          "decisao_motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decisao Motivo"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoDisputa"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "meta_horas_uteis": {
+            "default": 48,
+            "title": "Meta Horas Uteis",
+            "type": "integer"
+          },
+          "pagamento": {
+            "$ref": "#/components/schemas/PagamentoDetalhe"
+          },
+          "percentual_reembolso": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentual Reembolso"
+          },
+          "profissional_usuario_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profissional Usuario Id"
+          },
+          "tempo_espera_horas_uteis": {
+            "description": "Horas úteis acumuladas em espera (meta de 48h úteis).",
+            "title": "Tempo Espera Horas Uteis",
+            "type": "number"
+          },
+          "tempo_espera_minutos": {
+            "description": "Tempo em espera (em minutos) desde a abertura até a decisão ou agora.",
+            "title": "Tempo Espera Minutos",
+            "type": "integer"
+          },
+          "vaga_estado": {
+            "$ref": "#/components/schemas/EstadoVaga"
+          },
+          "vaga_id": {
+            "title": "Vaga Id",
+            "type": "integer"
+          },
+          "vaga_titulo": {
+            "title": "Vaga Titulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "vaga_id",
+          "vaga_titulo",
+          "vaga_estado",
+          "contratante_usuario_id",
+          "aberta_por_id",
+          "descricao",
+          "estado",
+          "criado_em",
+          "tempo_espera_minutos",
+          "tempo_espera_horas_uteis",
+          "acima_da_meta",
+          "chat",
+          "anexos",
+          "pagamento"
+        ],
+        "title": "DisputaAdminDetalhe",
+        "type": "object"
+      },
+      "DisputaDetalhe": {
+        "description": "Estado da disputa de uma vaga e o pagamento associado.",
+        "examples": [
+          {
+            "aberta_por_id": 3,
+            "criado_em": "2026-11-20T18:00:00Z",
+            "descricao": "Serviço interrompido pela metade.",
+            "estado": "aberta",
+            "id": 3,
+            "pagamento": {
+              "atualizado_em": "2026-11-20T18:10:00Z",
+              "codigo_pix": "PIX-SIM-000005-1A2B3C4D5E6F7A8B9C0D",
+              "criado_em": "2026-11-20T13:50:00Z",
+              "divisao": {
+                "percentual_taxa": "10",
+                "taxa_plataforma": "15.00",
+                "valor_liquido_profissional": "135.00",
+                "valor_total": "150.00"
+              },
+              "estado": "liberado",
+              "expira_em": "2026-11-20T14:05:00Z",
+              "id": 5,
+              "lancamentos": [
+                {
+                  "criado_em": "2026-11-20T13:50:00Z",
+                  "descricao": "Pix recebido e retido até a conclusão do serviço",
+                  "id": 1,
+                  "tipo": "retencao",
+                  "valor": "150.00"
+                },
+                {
+                  "criado_em": "2026-11-20T18:10:00Z",
+                  "descricao": "Liberação integral",
+                  "id": 2,
+                  "tipo": "liberacao_profissional",
+                  "valor": "135.00"
+                },
+                {
+                  "criado_em": "2026-11-20T18:10:00Z",
+                  "descricao": "Taxa da plataforma",
+                  "id": 3,
+                  "tipo": "taxa_plataforma",
+                  "valor": "15.00"
+                }
+              ],
+              "metodo": "pix",
+              "saldo_retido": "0.00",
+              "vaga_estado": "liberada",
+              "vaga_id": 42
+            },
+            "vaga_estado": "em_disputa",
+            "vaga_id": 42
+          }
+        ],
+        "properties": {
+          "aberta_por_id": {
+            "title": "Aberta Por Id",
+            "type": "integer"
+          },
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "decidido_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidido Em"
+          },
+          "decisao_motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decisao Motivo"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoDisputa"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "pagamento": {
+            "$ref": "#/components/schemas/PagamentoDetalhe"
+          },
+          "percentual_reembolso": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentual Reembolso"
+          },
+          "vaga_estado": {
+            "$ref": "#/components/schemas/EstadoVaga"
+          },
+          "vaga_id": {
+            "title": "Vaga Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "vaga_id",
+          "vaga_estado",
+          "aberta_por_id",
+          "descricao",
+          "estado",
+          "criado_em",
+          "pagamento"
+        ],
+        "title": "DisputaDetalhe",
+        "type": "object"
+      },
+      "DisputaEntrada": {
+        "description": "Relato enviado pelo contratante para contestar o serviço dentro das 24h de confirmação.",
+        "properties": {
+          "descricao": {
+            "description": "Motivo detalhado da contestação do serviço.",
+            "examples": [
+              "O serviço foi interrompido pela metade e parte do móvel ficou desmontada."
+            ],
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Descricao",
+            "type": "string"
+          }
+        },
+        "required": [
+          "descricao"
+        ],
+        "title": "DisputaEntrada",
+        "type": "object"
+      },
       "DivisaoValores": {
         "description": "Como o valor total se reparte entre profissional e plataforma.",
         "examples": [
@@ -382,6 +830,16 @@
           "banida"
         ],
         "title": "EstadoConta",
+        "type": "string"
+      },
+      "EstadoDisputa": {
+        "enum": [
+          "aberta",
+          "reembolso_total",
+          "reembolso_parcial",
+          "pagamento_integral"
+        ],
+        "title": "EstadoDisputa",
         "type": "string"
       },
       "EstadoPagamento": {
@@ -497,6 +955,70 @@
           "senha"
         ],
         "title": "LoginEntrada",
+        "type": "object"
+      },
+      "MensagemDisputaAdmin": {
+        "description": "Mensagem do histórico do chat da vaga exibida na aba de disputas do admin.",
+        "properties": {
+          "anexo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anexo Url"
+          },
+          "autor_id": {
+            "title": "Autor Id",
+            "type": "integer"
+          },
+          "conversa_id": {
+            "title": "Conversa Id",
+            "type": "integer"
+          },
+          "enviada_em": {
+            "format": "date-time",
+            "title": "Enviada Em",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lida_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lida Em"
+          },
+          "texto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Texto"
+          }
+        },
+        "required": [
+          "id",
+          "conversa_id",
+          "autor_id",
+          "enviada_em"
+        ],
+        "title": "MensagemDisputaAdmin",
         "type": "object"
       },
       "MensagemResumo": {
@@ -1278,6 +1800,171 @@
         ]
       }
     },
+    "/api/v1/admin/disputas": {
+      "get": {
+        "description": "Aba de disputas do admin: lista as contestações com o chat e os anexos de cada vaga.",
+        "operationId": "admin_listar_disputas",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "estado",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EstadoDisputa"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DisputaAdminDetalhe"
+                  },
+                  "title": "Response Admin Listar Disputas",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Disputas",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/disputas/{disputa_id}": {
+      "get": {
+        "description": "Detalhe de uma disputa na aba do admin, com histórico do chat, anexos e pagamento.",
+        "operationId": "admin_detalhar_disputa_admin",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "disputa_id",
+            "required": true,
+            "schema": {
+              "title": "Disputa Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisputaAdminDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Detalhar Disputa Admin",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/disputas/{disputa_id}/decisao": {
+      "post": {
+        "description": "Decide a disputa (reembolso total, parcial ou pagamento integral) e gera os lançamentos.",
+        "operationId": "admin_decidir_disputa",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "disputa_id",
+            "required": true,
+            "schema": {
+              "title": "Disputa Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisaoDisputaEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisputaAdminDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Decidir Disputa",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/prazos/varrer": {
       "post": {
         "description": "Força a verificação imediata de tudo que depende de prazo (expirações e liberações).",
@@ -1938,6 +2625,110 @@
         "summary": "Confirmar Conclusao",
         "tags": [
           "pagamentos"
+        ]
+      }
+    },
+    "/api/v1/vagas/{vaga_id}/disputa": {
+      "get": {
+        "description": "Consulta o estado da disputa da vaga e os lançamentos do pagamento.",
+        "operationId": "disputas_consultar_disputa",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisputaDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Consultar Disputa",
+        "tags": [
+          "disputas"
+        ]
+      },
+      "post": {
+        "description": "Abre a contestação dentro das 24h de confirmação e trava a vaga em `em_disputa`.",
+        "operationId": "disputas_contestar_servico",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisputaEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisputaDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Contestar Servico",
+        "tags": [
+          "disputas"
         ]
       }
     },
