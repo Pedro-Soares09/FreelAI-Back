@@ -26,6 +26,7 @@ from app.models.enums import (
     PapelUsuario,
     RiscoCategoria,
     StatusAprovacao,
+    TipoArquivo,
     TipoPerfil,
     TipoPessoa,
     TipoQualificacao,
@@ -245,3 +246,18 @@ class Configuracao(Base):
     perfil: Mapped[str] = mapped_column(String(16))
     valor: Mapped[str] = mapped_column(String(80))
     descricao: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
+class Arquivo(Base):
+    """Metadados de um arquivo enviado: dono, tipo, chave gerada, mime e tamanho."""
+
+    __tablename__ = "arquivos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    tipo: Mapped[TipoArquivo] = mapped_column(_enum(TipoArquivo))
+    chave: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    mime_type: Mapped[str] = mapped_column(String(64))
+    tamanho_bytes: Mapped[int] = mapped_column(Integer)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+

@@ -65,6 +65,21 @@ Rotas provisórias (`app/api/v1/stubs.py`) devolvem dados de exemplo, com o cabe
 
 O campo `verificado` vem de `GET /api/v1/auth/me`.
 
+## Arquivos (upload e leitura)
+
+Módulo único para fotos de perfil, selfies, documentos de identidade, comprovantes de qualificação,
+fotos de EPI e anexos de chat. Tipos permitidos: `jpg`, `png` e `pdf`, com limite padrão de 10 MB
+(`anexo_max_mb` em `app/services/configuracao.py`). Os arquivos são gravados em `uploads/` com nome
+gerado (nunca o original), por trás da interface `ArmazenamentoArquivos` em `app/services/arquivos.py`
+(local nesta fase, preparada para troca por S3).
+
+Rotas (tag `arquivos`):
+
+- `POST /api/v1/arquivos`: recebe `tipo` (`foto`, `selfie`, `documento`, `qualificacao`, `epi` ou
+  `anexo`) e `arquivo` via `multipart/form-data`, valida formato e tamanho e devolve a URL.
+- `GET /api/v1/arquivos/{tipo}/{nome}`: serve o arquivo armazenado. Arquivos de `documento` e
+  `selfie` exigem autenticação e só são acessíveis pelo dono ou por conta `admin`.
+
 ## Chat e conversas
 
 A conversa nasce somente no aceite do convite (`abrir_conversa_no_aceite`, 1 por vaga) e mantém o
