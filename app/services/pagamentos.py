@@ -30,6 +30,7 @@ from app.models import (
     Lancamento,
     Pagamento,
     PerfilContratante,
+    PerfilProfissional,
     TipoLancamento,
     Usuario,
     Vaga,
@@ -227,6 +228,16 @@ def _expirar(db: Session, pagamento: Pagamento) -> None:
 def _exigir_retido(pagamento: Pagamento) -> None:
     if pagamento.estado != EstadoPagamento.RETIDO:
         raise _erro_estado_pagamento(pagamento, EstadoPagamento.RETIDO)
+
+
+def _incrementar_servicos_concluidos(db: Session, vaga: Vaga) -> None:
+    """Incrementa os serviços concluídos do profissional quando a vaga entra em estado concluído."""
+    if vaga.profissional_id is None:
+        return
+    profissional = db.get(PerfilProfissional, vaga.profissional_id)
+    if profissional is not None:
+        profissional.servicos_concluidos = (profissional.servicos_concluidos or 0) + 1
+
 
 
 # ---------------------------------------------------------------------------
@@ -429,6 +440,7 @@ def confirmar_conclusao(db: Session, vaga: Vaga, contratante_usuario_id: int) ->
             fim_em=fim.isoformat(),
         )
     vaga.estado = EstadoVaga.CONCLUIDA
+    _incrementar_servicos_concluidos(db, vaga)
     db.commit()
     db.refresh(vaga)
     return vaga
@@ -522,6 +534,7 @@ def concluir_automaticamente(db: Session) -> int:
     vencidas = _vagas_com_fim_vencido(db, ESTADOS_CONCLUIVEIS, "confirmacao_conclusao_min")
     for vaga in vencidas:
         vaga.estado = EstadoVaga.CONCLUIDA
+        _incrementar_servicos_concluidos(db, vaga)
     if vencidas:
         db.commit()
     return len(vencidas)
