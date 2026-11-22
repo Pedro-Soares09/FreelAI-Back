@@ -14,6 +14,8 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, contains_eager, selectinload
 
+from decimal import Decimal
+
 from app.erros import erro_http
 from app.models import (
     Avaliacao,
@@ -424,3 +426,74 @@ def gerar_rodada(db: Session, vaga: Vaga) -> list[Convite]:
     for convite in convites:
         db.refresh(convite)
     return convites
+def manifestar_interesse(
+    db: Session,
+    convite_id: int,
+    usuario: Usuario,
+    valor_proposto: Decimal | None = None,
+) -> Convite:
+    """Registra o interesse do profissional no convite (regras FLX02 e FLX06).
+
+    - Apenas profissionais entre os 3 primeiros podem manifestar interesse (403).
+    - Contraproposta acima do percentual configurado (padrão +50%) é recusada.
+    - Segunda contraproposta no mesmo convite retorna 409.
+    - Atualiza o estado do convite para `INTERESSADO`.
+    """
+    convite = db.get(Convite, convite_id)
+    if convite is None:
+        raise erro_http(
+            status.HTTP_404_NOT_FOUND,
+            "convite_nao_encontrado",
+            "Convite não encontrado.",
+        )
+
+    vaga = db.get(Vaga, convite.vaga_id)
+    if vaga is None:
+        raise erro_http(
+            status.HTTP_404_NOT_FOUND,
+            "vaga_nao_encontrada",
+            "Vaga não encontrada.",
+        )
+
+    perfil = usuario.perfil_profissional
+    if perfil is None or convite.profissional_id != perfil.id or not (1 <= convite.posicao <= 3):
+        raise erro_http(
+            status.HTTP_403_FORBIDDEN,
+            "profissional_fora_do_top3",
+            "Apenas profissionais entre os 3 selecionados podem manifestar interesse.",
+        )
+
+    if valor_proposto is not None:
+        if valor_proposto <= 0:
+            raise erro_http(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "valor_proposto_invalido",
+                "O valor proposto deve ser maior que zero.",
+            )
+
+        if convite.valor_proposto is not None:
+            raise erro_http(
+                status.HTTP_409_CONFLICT,
+                "segunda_contraproposta_nao_permitida",
+                "Este convite já possui uma contraproposta registrada.",
+            )
+
+        max_pct = Decimal(str(configuracao.get("contraproposta_max_pct", db=db)))
+        valor_inicial = Decimal(str(vaga.valor_inicial))
+        limite_maximo = valor_inicial * (Decimal("1") + max_pct / Decimal("100"))
+
+        if valor_proposto > limite_maximo:
+            raise erro_http(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "contraproposta_acima_do_limite",
+                f"A contraproposta não pode ultrapassar +{max_pct}% do valor inicial.",
+                valor_inicial=str(valor_inicial),
+                limite_maximo=str(limite_maximo.quantize(Decimal("0.01"))),
+            )
+
+        convite.valor_proposto = valor_proposto
+
+    convite.estado = EstadoConvite.INTERESSADO
+    db.commit()
+    db.refresh(convite)
+    return convite

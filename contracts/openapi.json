@@ -175,6 +175,55 @@
         "title": "ConversaResumo",
         "type": "object"
       },
+      "ConviteInteresseResponse": {
+        "properties": {
+          "estado": {
+            "$ref": "#/components/schemas/EstadoConvite"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "posicao": {
+            "title": "Posicao",
+            "type": "integer"
+          },
+          "profissional_id": {
+            "title": "Profissional Id",
+            "type": "integer"
+          },
+          "rodada": {
+            "title": "Rodada",
+            "type": "integer"
+          },
+          "vaga_id": {
+            "title": "Vaga Id",
+            "type": "integer"
+          },
+          "valor_proposto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valor Proposto"
+          }
+        },
+        "required": [
+          "id",
+          "vaga_id",
+          "profissional_id",
+          "rodada",
+          "posicao",
+          "estado",
+          "valor_proposto"
+        ],
+        "title": "ConviteInteresseResponse",
+        "type": "object"
+      },
       "DadosAcordo": {
         "description": "Resumo do acordo: o que chega ao pagamento e ao botão Li e aceito.",
         "examples": [
@@ -384,6 +433,18 @@
         "title": "EstadoConta",
         "type": "string"
       },
+      "EstadoConvite": {
+        "enum": [
+          "sugerido",
+          "interessado",
+          "escolhido",
+          "aceito",
+          "recusado",
+          "expirado"
+        ],
+        "title": "EstadoConvite",
+        "type": "string"
+      },
       "EstadoPagamento": {
         "enum": [
           "aguardando",
@@ -428,6 +489,28 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InteresseRequest": {
+        "properties": {
+          "valor_proposto": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Contraproposta opcional do profissional (não pode ultrapassar +50% do valor inicial).",
+            "title": "Valor Proposto"
+          }
+        },
+        "title": "InteresseRequest",
         "type": "object"
       },
       "LancamentoResumo": {
@@ -1644,6 +1727,71 @@
         "summary": "Detalhar Conversa",
         "tags": [
           "conversas"
+        ]
+      }
+    },
+    "/api/v1/convites/{convite_id}/interesse": {
+      "post": {
+        "description": "Manifesta interesse em um convite, com contraproposta opcional.",
+        "operationId": "convites_registrar_interesse",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "convite_id",
+            "required": true,
+            "schema": {
+              "title": "Convite Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/InteresseRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConviteInteresseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Registrar Interesse",
+        "tags": [
+          "convites"
         ]
       }
     },
