@@ -12,7 +12,7 @@ from tests.fabricas import (
     criar_usuario,
 )
 
-BASE = datetime(2026, 11, 20, 12, 0, tzinfo=UTC)
+BASE = datetime.now(UTC).replace(microsecond=0)
 
 
 @pytest.fixture(autouse=True)

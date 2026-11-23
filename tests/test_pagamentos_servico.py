@@ -16,7 +16,7 @@ from app.services import configuracao, pagamentos, varreduras
 from app.tempo import agora, avancar_relogio, como_utc, fixar_relogio
 from tests.fabricas import criar_cenario_vaga
 
-BASE = datetime(2026, 11, 20, 12, 0, tzinfo=UTC)
+BASE = datetime.now(UTC).replace(microsecond=0)
 
 
 def _minutos(chave: str, db) -> timedelta:
