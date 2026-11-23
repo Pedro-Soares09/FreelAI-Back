@@ -111,13 +111,3 @@ class FinalidadeAceite(StrEnum):
     TERMOS = "termos"
     BIOMETRIA = "biometria"
     CONTRATO = "contrato"
-
-
-class TipoArquivo(StrEnum):
-    FOTO = "foto"
-    SELFIE = "selfie"
-    DOCUMENTO = "documento"
-    QUALIFICACAO = "qualificacao"
-    EPI = "epi"
-    ANEXO = "anexo"
-
