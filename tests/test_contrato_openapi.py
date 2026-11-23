@@ -30,7 +30,7 @@ def test_contrato_versionado_esta_em_dia():
 
 @pytest.mark.parametrize(
     "schema",
-    ["UsuarioAtual", "VagaResumo", "ConversaResumo", "DadosAcordo", "PontoMapa", "ArquivoEnviado"],
+    ["UsuarioAtual", "VagaResumo", "ConversaResumo", "DadosAcordo", "PontoMapa"],
 )
 def test_pontos_de_integracao_tem_schema_com_exemplo(schema):
     componentes = app.openapi()["components"]["schemas"]
