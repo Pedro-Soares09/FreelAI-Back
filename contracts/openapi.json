@@ -5269,8 +5269,8 @@
     },
     "/api/v1/vagas/{vaga_id}/acordo": {
       "get": {
-        "description": "Resumo do acordo que alimenta o contrato e o pagamento (resposta de exemplo).",
-        "operationId": "vagas_consultar_acordo",
+        "description": "Termos do acordo e situação dos aceites. Restrito às duas partes da vaga.",
+        "operationId": "acordo_consultar_acordo",
         "parameters": [
           {
             "in": "path",
@@ -5304,9 +5304,62 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Consultar Acordo",
         "tags": [
-          "vagas"
+          "acordo"
+        ]
+      }
+    },
+    "/api/v1/vagas/{vaga_id}/acordo/aceite": {
+      "post": {
+        "description": "Registra o \"Li e aceito\" do usuário. O contrato é congelado no primeiro aceite.",
+        "operationId": "acordo_aceitar_acordo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DadosAcordo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Aceitar Acordo",
+        "tags": [
+          "acordo"
         ]
       }
     },

@@ -101,7 +101,7 @@ def profissional_ativo(
 # ---------------------------------------------------------------- conversões
 
 
-def _reputacao(db: Session, usuario_id: int) -> tuple[float, int]:
+def reputacao_do_usuario(db: Session, usuario_id: int) -> tuple[float, int]:
     media, total = db.execute(
         select(func.avg(Avaliacao.nota), func.count(Avaliacao.id)).where(
             Avaliacao.avaliado_id == usuario_id, Avaliacao.visivel_em.is_not(None)
@@ -112,7 +112,7 @@ def _reputacao(db: Session, usuario_id: int) -> tuple[float, int]:
 
 def _resumo_contratante(db: Session, contratante: PerfilContratante) -> ContratanteResumo:
     usuario = db.get(Usuario, contratante.usuario_id)
-    nota, total = _reputacao(db, contratante.usuario_id)
+    nota, total = reputacao_do_usuario(db, contratante.usuario_id)
     return ContratanteResumo(
         id=str(contratante.id),
         nome=contratante.razao_social or usuario.nome,
@@ -467,7 +467,7 @@ def recusar_convite(
 
 def _recomendado(db: Session, convite: Convite, vaga: Vaga) -> ProfissionalRecomendado:
     perfil = db.get(PerfilProfissional, convite.profissional_id)
-    nota, total = _reputacao(db, perfil.usuario_id)
+    nota, total = reputacao_do_usuario(db, perfil.usuario_id)
     novo = match.eh_novo(db, perfil)
     destino = db.get(Endereco, vaga.endereco_id)
     distancia = (

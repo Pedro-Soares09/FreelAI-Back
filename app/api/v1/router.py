@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    acordo,
     admin,
     arquivos,
     auth,
@@ -29,4 +30,5 @@ api_router.include_router(disputas.router)
 api_router.include_router(notificacoes.router)
 api_router.include_router(pagamentos.router)
 api_router.include_router(vagas.router)
+api_router.include_router(acordo.router)
 api_router.include_router(stubs.router)
