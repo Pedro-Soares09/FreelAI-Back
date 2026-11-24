@@ -135,6 +135,7 @@ def abrir_cobranca(
     """Abre a cobrança Pix da vaga aceita. O valor fica retido até a conclusão do serviço."""
     vaga = _buscar_vaga(db, vaga_id)
     pagamentos.exigir_contratante_dono(db, vaga, usuario.id)
+    pagamentos.exigir_aceites_do_acordo(db, vaga)
     pagamento = pagamentos.criar_pagamento(db, vaga)
     return montar_detalhe(db, pagamento, vaga)
 

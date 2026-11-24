@@ -7,7 +7,9 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AceiteContrato,
     Categoria,
+    Contrato,
     Endereco,
     EstadoConta,
     EstadoVaga,
@@ -210,6 +212,7 @@ def criar_cenario_vaga(
     duracao_minutos: int = 120,
     contratante: Usuario | None = None,
     profissional: Usuario | None = None,
+    aceites_completos: bool = False,
 ) -> CenarioVaga:
     n = _proximo()
     contratante = contratante or criar_usuario(
@@ -238,4 +241,14 @@ def criar_cenario_vaga(
     db.add(vaga)
     db.commit()
     db.refresh(vaga)
+    if aceites_completos:
+        contrato = Contrato(vaga_id=vaga.id, versao_termos="1.0", conteudo={})
+        db.add(contrato)
+        db.flush()
+        for papel, parte in (
+            (TipoPerfil.CONTRATANTE, contratante),
+            (TipoPerfil.PROFISSIONAL, profissional),
+        ):
+            db.add(AceiteContrato(contrato_id=contrato.id, usuario_id=parte.id, perfil=papel))
+        db.commit()
     return CenarioVaga(vaga=vaga, contratante=contratante, profissional=profissional)
