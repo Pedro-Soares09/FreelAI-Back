@@ -7,8 +7,9 @@ Regras:
 - A fila do admin exibe o tempo em espera (`tempo_espera_minutos` e `tempo_espera_horas_uteis`,
   com `meta_horas_uteis = 48` e indicador `acima_da_meta`).
 - Decisão do admin (`procedente` ou `improcedente`) exige motivo, grava `decidido_em` e:
-  - Quando `procedente`, passa a contar como `EstadoDenuncia.PROCEDENTE` na reputação (US55)
-    e na contagem para suspensão da conta ao atingir `denuncias_para_suspensao` (US58).
+  - Quando `procedente`, a denúncia é uma penalidade ao denunciado: bloqueia o chat entre as
+    duas partes envolvidas (somente ele; vagas, match e demais funções seguem livres) e, ao
+    atingir `denuncias_para_banimento` penalidades, a conta é banida de forma permanente.
 - Privacidade: a visão de usuário (`DenunciaPublicaResumo`) jamais expõe `denunciante_id`, de
   modo que o denunciado nunca vê quem o denunciou.
 """
@@ -23,6 +24,7 @@ from app.api.v1.schemas.denuncias import (
     DenunciaEntrada,
     DenunciaFilaAdmin,
     DenunciaPublicaResumo,
+    UsuarioBanido,
 )
 from app.erros import erro_http
 from app.models import (
@@ -36,7 +38,7 @@ from app.models import (
     Usuario,
     Vaga,
 )
-from app.services import configuracao
+from app.services import configuracao, notificacoes
 from app.tempo import agora, como_utc
 
 META_FILA_HORAS_UTEIS = 48
@@ -272,6 +274,7 @@ def montar_item_fila_admin(
         if procedentes_cache is not None:
             procedentes_cache[denuncia.denunciado_id] = procedentes
 
+    denunciado = db.get(Usuario, denuncia.denunciado_id)
     return DenunciaFilaAdmin(
         id=denuncia.id,
         denunciante_id=denuncia.denunciante_id,
@@ -290,6 +293,9 @@ def montar_item_fila_admin(
         meta_horas_uteis=META_FILA_HORAS_UTEIS,
         acima_da_meta=horas_uteis > META_FILA_HORAS_UTEIS,
         denuncias_procedentes_acumuladas=procedentes,
+        denunciado_estado=denunciado.estado if denunciado is not None else None,
+        conversa_bloqueada=denuncia.estado == EstadoDenuncia.PROCEDENTE
+        and (denuncia.conversa_id is not None or denuncia.vaga_id is not None),
     )
 
 
@@ -311,20 +317,21 @@ def listar_fila_admin(
     return [montar_item_fila_admin(db, item, procedentes_cache=cache) for item in itens]
 
 
-def _aplicar_suspensao_por_denuncias_se_atingiu_limite(
-    db: Session,
-    denunciado_id: int,
-) -> int:
-    """Conta denúncias procedentes do denunciado e suspende a conta se atingir o limite (US58)."""
-    procedentes = total_procedentes_do_usuario(db, denunciado_id)
-    limite = int(configuracao.get("denuncias_para_suspensao", db=db))
-    if procedentes >= limite:
+def _banir_se_atingiu_limite(db: Session, denunciado_id: int) -> tuple[int, int, bool]:
+    """Conta as penalidades do denunciado e o bane de forma permanente ao atingir o limite.
+
+    Devolve `(penalidades, limite, banido)`.
+    """
+    penalidades = total_procedentes_do_usuario(db, denunciado_id)
+    limite = int(configuracao.get("denuncias_para_banimento", db=db))
+    banido = False
+    if penalidades >= limite:
         usuario = db.get(Usuario, denunciado_id)
-        if usuario is not None and usuario.estado != EstadoConta.BANIDA:
-            dias = int(configuracao.get("suspensao_denuncias_dias", db=db))
-            usuario.estado = EstadoConta.SUSPENSA
-            usuario.suspensa_ate = agora() + timedelta(days=dias)
-    return procedentes
+        if usuario is not None:
+            usuario.estado = EstadoConta.BANIDA
+            usuario.suspensa_ate = None
+            banido = True
+    return penalidades, limite, banido
 
 
 def decidir_denuncia(
@@ -360,9 +367,29 @@ def decidir_denuncia(
     denuncia.decidido_em = agora()
     db.flush()
 
+    penalidades, limite, banido = 0, int(configuracao.get("denuncias_para_banimento", db=db)), False
     if novo_estado == EstadoDenuncia.PROCEDENTE:
-        _aplicar_suspensao_por_denuncias_se_atingiu_limite(db, denuncia.denunciado_id)
+        penalidades, limite, banido = _banir_se_atingiu_limite(db, denuncia.denunciado_id)
 
+    notificacoes.notificar_denuncia_decidida(
+        db, denuncia, penalidades=penalidades, limite=limite, banido=banido, commit=False
+    )
     db.commit()
     db.refresh(denuncia)
     return montar_item_fila_admin(db, denuncia)
+
+
+def listar_banidos(db: Session) -> list[UsuarioBanido]:
+    """Contas banidas, com a quantidade de penalidades que levou ao banimento."""
+    usuarios = db.scalars(
+        select(Usuario).where(Usuario.estado == EstadoConta.BANIDA, Usuario.excluida_em.is_(None))
+    ).all()
+    return [
+        UsuarioBanido(
+            usuario_id=u.id,
+            nome=u.nome,
+            email=u.email,
+            penalidades=total_procedentes_do_usuario(db, u.id),
+        )
+        for u in usuarios
+    ]

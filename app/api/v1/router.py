@@ -7,6 +7,7 @@ from app.api.v1 import (
     arquivos,
     auth,
     avaliacoes,
+    comprovantes,
     conta,
     conversas,
     denuncias,
@@ -26,6 +27,7 @@ from app.api.v1 import (
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(saude.router)
 api_router.include_router(auth.router)
+api_router.include_router(comprovantes.router)
 api_router.include_router(conta.router)
 api_router.include_router(admin.router)
 api_router.include_router(admin_aprovacoes.router)

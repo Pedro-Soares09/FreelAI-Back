@@ -41,7 +41,7 @@ from app.models import (
     Vaga,
 )
 from app.security import decode_access_token
-from app.services import configuracao
+from app.services import comprovantes, configuracao
 from app.tempo import agora, como_utc
 
 WS_CODIGO_NAO_AUTENTICADO = 4401
@@ -126,6 +126,34 @@ def _em_utc(instante: datetime | None) -> datetime | None:
 def vaga_permite_escrita(vaga: Vaga) -> bool:
     """Verdadeiro enquanto a vaga tem profissional vinculado e está em estado ativo."""
     return vaga.profissional_id is not None and vaga.estado in ESTADOS_CONVERSA_ABERTA
+
+
+def conversa_bloqueada(db: Session, conversa: Conversa) -> bool:
+    """Verdadeiro quando uma denúncia procedente bloqueou a troca de mensagens desta conversa.
+
+    O bloqueio vale apenas para o chat entre as duas partes da vaga; o restante da plataforma
+    segue disponível para elas.
+    """
+    return (
+        db.scalar(
+            select(Denuncia.id)
+            .where(
+                Denuncia.estado == EstadoDenuncia.PROCEDENTE,
+                (Denuncia.conversa_id == conversa.id) | (Denuncia.vaga_id == conversa.vaga_id),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
+def exigir_conversa_desbloqueada(db: Session, conversa: Conversa) -> None:
+    if conversa_bloqueada(db, conversa):
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "conversa_bloqueada",
+            "O chat entre as partes foi bloqueado após uma denúncia procedente.",
+        )
 
 
 def sincronizar_estado_conversa(db: Session, conversa: Conversa, vaga: Vaga | None = None) -> bool:
@@ -296,6 +324,11 @@ def _montar_perfil_resumo(
         )
     ).one()
 
+    destaque = (
+        comprovantes.destaque_do_contratante(db, usuario_id)
+        if lado == "contratante"
+        else None
+    )
     return PerfilResumo(
         usuario_id=usuario_id,
         nome=usuario.nome if usuario is not None else "",
@@ -305,6 +338,8 @@ def _montar_perfil_resumo(
         pro=False,
         nota_media=round(float(media), 2) if media is not None else None,
         total_avaliacoes=int(total or 0),
+        adicionais_pagos=destaque.adicionais_pagos if destaque else 0,
+        destaque=destaque.destaque if destaque else False,
     )
 
 
@@ -346,6 +381,7 @@ def montar_resumo(db: Session, conversa: Conversa, vaga: Vaga, usuario_id: int) 
         id=conversa.id,
         vaga_id=vaga.id,
         aberta=conversa.aberta,
+        bloqueada=conversa_bloqueada(db, conversa),
         outra_parte=_outra_parte_da_vaga(db, vaga, usuario_id),
         ultima_mensagem=resumo_ultima,
         nao_lidas=int(nao_lidas or 0),
@@ -501,6 +537,7 @@ def registrar_mensagem(
     anexo_url: str | None = None,
 ) -> Mensagem:
     """Persiste uma nova mensagem na conversa se ela estiver aberta para escrita."""
+    exigir_conversa_desbloqueada(db, conversa)
     aberta = sincronizar_estado_conversa(db, conversa, vaga)
     if not aberta:
         raise erro_http(
@@ -599,6 +636,7 @@ def registrar_mensagem_com_anexo(
     texto: str | None = None,
 ) -> Mensagem:
     """Valida o anexo e a legenda opcional, grava o arquivo e persiste a mensagem."""
+    exigir_conversa_desbloqueada(db, conversa)
     aberta = sincronizar_estado_conversa(db, conversa, vaga)
     if not aberta:
         raise erro_http(

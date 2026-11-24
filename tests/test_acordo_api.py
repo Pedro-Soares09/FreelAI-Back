@@ -76,24 +76,20 @@ def test_vaga_cancelada_nao_aceita_o_acordo(cliente, db, cenario):
     assert resposta.json()["detail"]["codigo"] == "acordo_indisponivel"
 
 
-def test_do_acordo_ao_pix_retido(cliente, db, cenario):
+def test_do_acordo_a_contratacao_sem_pagamento_previo(cliente, db, cenario):
     cliente.post(_url(cenario, "/aceite"), headers=cabecalho(cenario.profissional))
     cliente.post(_url(cenario, "/aceite"), headers=cabecalho(cenario.contratante))
 
-    cobranca = cliente.post(
+    db.refresh(cenario.vaga)
+    assert cenario.vaga.estado == EstadoVaga.CONTRATADA
+    sem_cobranca = cliente.get(
         f"/api/v1/vagas/{cenario.vaga.id}/pagamento", headers=cabecalho(cenario.contratante)
     )
-    assert cobranca.status_code == 201
-    assert cobranca.json()["estado"] == "aguardando"
-    assert cobranca.json()["codigo_pix"]
-
-    pago = cliente.post(
-        f"/api/v1/pagamentos/{cobranca.json()['id']}/simular-confirmacao",
-        headers=cabecalho(cenario.contratante),
+    assert sem_cobranca.status_code == 404
+    antecipada = cliente.post(
+        f"/api/v1/vagas/{cenario.vaga.id}/pagamento", headers=cabecalho(cenario.contratante)
     )
-    assert pago.status_code == 200
-    assert pago.json()["estado"] == "retido"
-    assert pago.json()["vaga_estado"] == "contratada"
+    assert antecipada.status_code == 409
 
 
 def test_cobranca_exige_o_aceite_das_duas_partes(cliente, db, cenario):
@@ -107,7 +103,8 @@ def test_cobranca_exige_o_aceite_das_duas_partes(cliente, db, cenario):
     assert so_um.status_code == 409
 
     cliente.post(_url(cenario, "/aceite"), headers=cabecalho(cenario.profissional))
-    assert cliente.post(url, headers=cabecalho(cenario.contratante)).status_code == 201
+    # Com as duas partes de acordo a vaga é contratada e o pagamento só abre depois do serviço.
+    assert cliente.post(url, headers=cabecalho(cenario.contratante)).status_code == 409
 
 
 def test_acordo_continua_consultavel_em_disputa(cliente, db, cenario):

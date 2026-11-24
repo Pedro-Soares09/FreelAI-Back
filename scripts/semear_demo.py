@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import settings  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
-from app.models import Categoria, Endereco, Vaga  # noqa: E402
+from app.models import Categoria, Endereco, Experiencia, Vaga  # noqa: E402
 from app.models.enums import (  # noqa: E402  # noqa: E402
     EstadoConta,
     PapelUsuario,
@@ -192,6 +192,15 @@ def semear_marketplace(db) -> None:
         perfil.verificacao = StatusAprovacao.APROVADO
         perfil.experiencia_aprovada = StatusAprovacao.APROVADO
         perfil.categorias = list(por_slug.values())
+        for categoria in por_slug.values():
+            db.add(
+                Experiencia(
+                    profissional_id=perfil.id,
+                    categoria_id=categoria.id,
+                    descricao=f"Serviços de {categoria.nome.lower()} em residências e comércios.",
+                    status=StatusAprovacao.APROVADO,
+                )
+            )
     if ana.perfil_contratante is not None:
         ana.perfil_contratante.verificacao = StatusAprovacao.APROVADO
 

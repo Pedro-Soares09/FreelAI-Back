@@ -28,6 +28,7 @@ from app.models.enums import (
     EstadoVaga,
     FinalidadeAceite,
     OrigemDenuncia,
+    TipoComprovante,
     TipoLancamento,
     TipoPerfil,
     TipoVaga,
@@ -293,3 +294,24 @@ class AceiteTermos(Base):
     finalidade: Mapped[FinalidadeAceite] = mapped_column(_enum(FinalidadeAceite))
     versao: Mapped[str] = mapped_column(String(20))
     aceito_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+
+
+class ComprovantePagamento(Base):
+    """Comprovante anexado a uma vaga: serviço, horas extras ou bônus pagos entre as partes.
+
+    Horas extras e bônus guardam a taxa adicional da plataforma calculada no envio.
+    """
+
+    __tablename__ = "comprovantes_pagamento"
+    __table_args__ = (CheckConstraint("valor > 0", name="ck_comprovantes_valor"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vaga_id: Mapped[int] = mapped_column(ForeignKey("vagas.id"), index=True)
+    tipo: Mapped[TipoComprovante] = mapped_column(_enum(TipoComprovante))
+    valor: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    arquivo_id: Mapped[int] = mapped_column(ForeignKey("arquivos.id"))
+    enviado_por_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    acordo_previo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    taxa_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("0"))
+    taxa_valor: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"))
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)

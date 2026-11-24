@@ -22,7 +22,7 @@ from app.models import (
     Usuario,
     Vaga,
 )
-from app.services import configuracao, match, pagamentos
+from app.services import comprovantes, configuracao, match, pagamentos
 
 router = APIRouter(tags=["acordo"])
 
@@ -69,8 +69,11 @@ def _vaga_com_acordo(db: Session, vaga_id: int, usuario: Usuario) -> tuple[Vaga,
     return vaga, papel
 
 
-def _perfil_resumo(db: Session, usuario: Usuario, verificado: bool, novo: bool) -> PerfilResumo:
+def _perfil_resumo(
+    db: Session, usuario: Usuario, verificado: bool, novo: bool, *, contratante: bool = False
+) -> PerfilResumo:
     nota, total = reputacao_do_usuario(db, usuario.id)
+    destaque = comprovantes.destaque_do_contratante(db, usuario.id) if contratante else None
     return PerfilResumo(
         usuario_id=usuario.id,
         nome=usuario.nome,
@@ -79,6 +82,8 @@ def _perfil_resumo(db: Session, usuario: Usuario, verificado: bool, novo: bool) 
         pro=False,
         nota_media=nota if total else None,
         total_avaliacoes=total,
+        adicionais_pagos=destaque.adicionais_pagos if destaque else 0,
+        destaque=destaque.destaque if destaque else False,
     )
 
 
@@ -120,8 +125,9 @@ def _dados(db: Session, vaga: Vaga) -> DadosAcordo:
         valor_liquido_profissional=liquido,
         condicoes_pagamento=vaga.condicoes_pagamento
         or (
-            "Pix pago pelo contratante, retido pela plataforma e liberado ao profissional "
-            f"após a conclusão ({janela_conclusao} para confirmar)."
+            "Pix pago pelo contratante depois da conclusão do serviço "
+            f"({janela_conclusao} para confirmar) e liberado ao profissional. Horas extras e "
+            "bônus são combinados entre as partes e têm comprovante anexado na plataforma."
         ),
         regras_cancelamento=(
             f"Cancelar com menos de {atraso} de antecedência gera advertência ao autor."
@@ -133,7 +139,9 @@ def _dados(db: Session, vaga: Vaga) -> DadosAcordo:
         profissional=_perfil_resumo(
             db, profissional, perfil_profissional.verificado, match.eh_novo(db, perfil_profissional)
         ),
-        contratante=_perfil_resumo(db, contratante, perfil_contratante.verificado, False),
+        contratante=_perfil_resumo(
+            db, contratante, perfil_contratante.verificado, False, contratante=True
+        ),
         aceites=AceitesAcordo(
             profissional=TipoPerfil.PROFISSIONAL in aceitos,
             contratante=TipoPerfil.CONTRATANTE in aceitos,
@@ -178,6 +186,10 @@ def aceitar_acordo(
         db.flush()
     if not any(a.perfil == papel for a in contrato.aceites):
         db.add(AceiteContrato(contrato_id=contrato.id, usuario_id=usuario.id, perfil=papel))
-        db.commit()
+        db.flush()
         db.refresh(contrato)
+    if {a.perfil for a in contrato.aceites} == {TipoPerfil.CONTRATANTE, TipoPerfil.PROFISSIONAL}:
+        # Com as duas partes de acordo o serviço está contratado; o pagamento vem depois.
+        vaga.estado = EstadoVaga.CONTRATADA
+    db.commit()
     return _dados(db, vaga)

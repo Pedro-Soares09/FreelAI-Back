@@ -70,8 +70,10 @@ class CadastroProfissionalEntrada(BaseModel):
     foto_url: str | None = Field(default=None, max_length=255)
     bairro: str = Field(min_length=1, max_length=80)
     logradouro: str | None = Field(default=None, max_length=160)
-    latitude: float = Field(ge=-90, le=90)
-    longitude: float = Field(ge=-180, le=180)
+    latitude: float | None = Field(
+        default=None, ge=-90, le=90, description="Opcional: deduzida do bairro quando ausente."
+    )
+    longitude: float | None = Field(default=None, ge=-180, le=180)
     raio_km: int = Field(default=5, ge=1)
     categorias: list[str] = Field(min_length=1, description="Slugs das categorias de atuação.")
     caracteristicas: CaracteristicasEntrada | None = None
@@ -182,6 +184,8 @@ class PerfilContratanteDetalhe(BaseModel):
     selfie_url: str | None
     verificacao: EstadoVerificacao
     verificacao_motivo: str | None
+    adicionais_pagos: int = 0
+    destaque: bool = False
 
 
 # ---------------------------------------------------------------- verificação

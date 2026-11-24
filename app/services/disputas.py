@@ -2,7 +2,10 @@
 
 Regras:
 - O contratante dono da vaga pode contestar o serviço dentro da janela de 24h de confirmação
-  (`confirmacao_conclusao_min`) após o fim do serviço, enquanto o pagamento estiver `retido`.
+  (`confirmacao_conclusao_min`) após o fim do serviço, enquanto o pagamento estiver `retido` ou
+  ainda não tiver sido pago (o pagamento do serviço acontece depois da conclusão). Disputa
+  sobre cobrança não paga não movimenta dinheiro: o reembolso total cancela a cobrança e os
+  demais resultados reemitem a cobrança com o valor devido.
 - Abrir a disputa trava a vaga em `EstadoVaga.EM_DISPUTA` (`em_disputa`), impedindo que a
   varredura das 24h (`conclusao_automatica`) ou a varredura das 72h (`liberacao_parcial`)
   movimente o pagamento.
@@ -15,6 +18,7 @@ Regras:
 """
 
 from datetime import datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import status
 from sqlalchemy import select
@@ -46,6 +50,13 @@ from app.services import configuracao, pagamentos
 from app.tempo import agora, como_utc
 
 META_DISPUTA_HORAS_UTEIS = 48
+
+ESTADOS_DISPUTAVEIS: frozenset[EstadoPagamento] = frozenset(
+    {EstadoPagamento.AGUARDANDO, EstadoPagamento.EXPIRADO, EstadoPagamento.RETIDO}
+)
+ESTADOS_NAO_PAGOS: frozenset[EstadoPagamento] = frozenset(
+    {EstadoPagamento.AGUARDANDO, EstadoPagamento.EXPIRADO}
+)
 
 ESTADOS_CONTESTAVEIS: frozenset[EstadoVaga] = frozenset(
     {
@@ -141,12 +152,12 @@ def abrir_disputa(
             estado_atual=vaga.estado.value,
         )
 
-    pagamento = _pagamento_obrigatorio(db, vaga)
-    if pagamento.estado != EstadoPagamento.RETIDO:
+    pagamento = pagamentos.pagamento_da_vaga(db, vaga)
+    if pagamento is not None and pagamento.estado not in ESTADOS_DISPUTAVEIS:
         raise erro_http(
             status.HTTP_409_CONFLICT,
             "pagamento_nao_retido",
-            "A disputa só pode ser aberta enquanto o valor do pagamento estiver retido.",
+            "A disputa só pode ser aberta antes do pagamento ou com o valor retido.",
             estado_atual=pagamento.estado.value,
         )
 
@@ -169,6 +180,8 @@ def abrir_disputa(
             prazo_em=limite.isoformat(),
         )
 
+    if pagamento is None:
+        pagamentos.emitir_cobranca(db, vaga)
     disputa = Disputa(
         vaga_id=vaga.id,
         aberta_por_id=contratante.id,
@@ -317,6 +330,44 @@ def consultar_disputa_admin(db: Session, disputa_id: int) -> DisputaAdminDetalhe
     return montar_item_admin(db, disputa)
 
 
+def _decidir_sem_pagamento(
+    db: Session,
+    disputa: Disputa,
+    vaga: Vaga,
+    pagamento: Pagamento,
+    entrada: DecisaoDisputaEntrada,
+) -> None:
+    """Decide uma disputa cuja cobrança ainda não foi paga: nenhum valor está retido."""
+    disputa.decisao_motivo = entrada.motivo
+    disputa.decidido_em = agora()
+    if entrada.decisao == EstadoDisputa.REEMBOLSO_TOTAL.value:
+        disputa.estado = EstadoDisputa.REEMBOLSO_TOTAL
+        disputa.percentual_reembolso = 100
+        pagamento.estado = EstadoPagamento.EXPIRADO
+        vaga.estado = EstadoVaga.REEMBOLSADA
+        db.commit()
+        return
+    if entrada.decisao == EstadoDisputa.REEMBOLSO_PARCIAL.value:
+        pct_reembolso = int(entrada.percentual_reembolso)
+        disputa.estado = EstadoDisputa.REEMBOLSO_PARCIAL
+        disputa.percentual_reembolso = pct_reembolso
+        devido = _valor_devido(pagamento, 100 - pct_reembolso)
+    else:
+        disputa.estado = EstadoDisputa.PAGAMENTO_INTEGRAL
+        disputa.percentual_reembolso = 0
+        devido = _valor_devido(pagamento, 100)
+    # O serviço volta a concluído e o contratante paga o valor decidido.
+    vaga.estado = EstadoVaga.CONCLUIDA
+    pagamentos.emitir_cobranca(db, vaga, valor=devido, renovar=True)
+    db.commit()
+
+
+def _valor_devido(pagamento: Pagamento, percentual_profissional: int) -> Decimal:
+    return (Decimal(pagamento.valor_total) * percentual_profissional / Decimal("100")).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+
+
 def decidir_disputa(
     db: Session,
     disputa_id: int,
@@ -347,7 +398,9 @@ def decidir_disputa(
         )
     pagamento = _pagamento_obrigatorio(db, vaga)
 
-    if entrada.decisao == EstadoDisputa.REEMBOLSO_TOTAL.value:
+    if pagamento.estado in ESTADOS_NAO_PAGOS:
+        _decidir_sem_pagamento(db, disputa, vaga, pagamento, entrada)
+    elif entrada.decisao == EstadoDisputa.REEMBOLSO_TOTAL.value:
         disputa.estado = EstadoDisputa.REEMBOLSO_TOTAL
         disputa.percentual_reembolso = 100
         disputa.decisao_motivo = entrada.motivo

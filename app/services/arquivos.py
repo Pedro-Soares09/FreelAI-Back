@@ -24,7 +24,7 @@ BYTES_POR_MB = 1024 * 1024
 TAMANHO_BLOCO = 64 * 1024
 
 TIPOS_SENSIVEIS: frozenset[TipoArquivo] = frozenset(
-    {TipoArquivo.DOCUMENTO, TipoArquivo.SELFIE}
+    {TipoArquivo.DOCUMENTO, TipoArquivo.SELFIE, TipoArquivo.COMPROVANTE}
 )
 
 
