@@ -187,6 +187,18 @@ class Mensagem(Base):
     conversa: Mapped[Conversa] = relationship(back_populates="mensagens")
 
 
+class TentativaContato(Base):
+    """Registro persistido de tentativas bloqueadas de envio de contato no chat."""
+
+    __tablename__ = "tentativas_contato"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    conversa_id: Mapped[int] = mapped_column(ForeignKey("conversas.id"), index=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    conteudo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+
+
 class Avaliacao(Base):
     __tablename__ = "avaliacoes"
     __table_args__ = (

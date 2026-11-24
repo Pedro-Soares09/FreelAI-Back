@@ -17,8 +17,8 @@ class MensagemEntrada(BaseModel):
     anexo_url: str | None = Field(
         default=None,
         max_length=255,
-        description="URL de arquivo enviado em `/api/v1/arquivos`.",
-        examples=["/api/v1/arquivos/anexo/a1b2c3d4e5f60718293a4b5c6d7e8f90.png"],
+        description="URL de anexo enviado em `/api/v1/conversas/{conversa_id}/anexos`.",
+        examples=["/api/v1/conversas/1/anexos/a1b2c3d4e5f60718293a4b5c6d7e8f90.png"],
     )
 
     @model_validator(mode="after")

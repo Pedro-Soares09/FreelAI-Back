@@ -7,8 +7,14 @@ reembolsada ou devolvida à publicação sem profissional) ou encerra seu ciclo 
 (liberada ou liberada parcial).
 """
 
+import os
+import re
+import secrets
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import BinaryIO
 
 from fastapi import WebSocket, status
 from jose import JWTError
@@ -22,11 +28,15 @@ from app.erros import erro_http
 from app.models import (
     Avaliacao,
     Conversa,
+    Denuncia,
     EstadoConta,
+    EstadoDenuncia,
     EstadoVaga,
     Mensagem,
+    OrigemDenuncia,
     PerfilContratante,
     PerfilProfissional,
+    TentativaContato,
     Usuario,
     Vaga,
 )
@@ -37,6 +47,44 @@ from app.tempo import agora, como_utc
 WS_CODIGO_NAO_AUTENTICADO = 4401
 WS_CODIGO_SEM_ACESSO = 4403
 WS_CODIGO_NAO_ENCONTRADA = 4404
+
+LIMITE_TENTATIVAS_CONTATO = 3
+MOTIVO_DENUNCIA_CONTATO = "tentativa_de_contato_externo"
+AVISO_CONTATO_BLOQUEADO = (
+    "Por segurança, não é permitido enviar telefone ou WhatsApp pelo chat."
+)
+
+BYTES_POR_MB = 1024 * 1024
+TAMANHO_BLOCO_ANEXO = 64 * 1024
+
+# Aceita formatos brasileiros com pontos, espaços, parênteses, hífen ou sem separadores
+# (+55, DDD com ou sem 0, nono dígito e blocos 4+4), evitando confundir datas ou valores.
+PADRAO_TELEFONE_BR = re.compile(
+    r"(?<!\d)"
+    r"(?:"
+    r"(?:\+?55[.\s-]*|\(\+?55\)[.\s-]*)?"
+    r"\(?0?[1-9]\d\)?[.\s-]*"
+    r"(?:9[.\s-]?)?\d{4}[.\s-]*\d{4}"
+    r"|"
+    r"(?:9[.\s-]?)?\d{4}[.\s-]+\d{4}"
+    r")"
+    r"(?!\d)"
+)
+PADRAO_WHATSAPP = re.compile(
+    r"(?:"
+    r"wa\.me/"
+    r"|api\.whatsapp\.com"
+    r"|\b(?:whats\s*app|whats|wpp|zap\s*zap|zap)\b"
+    r")",
+    re.IGNORECASE,
+)
+
+PADRAO_NOME_ANEXO = re.compile(r"^[0-9a-f]{32}\.(jpg|png|pdf)$")
+TIPOS_ANEXO_POR_EXTENSAO: dict[str, str] = {
+    ".jpg": "image/jpeg",
+    ".png": "image/png",
+    ".pdf": "application/pdf",
+}
 
 # Estados da vaga a partir do aceite em que a conversa já pode existir.
 ESTADOS_POS_ACEITE: frozenset[EstadoVaga] = frozenset(
@@ -359,6 +407,94 @@ def listar_historico(db: Session, conversa_id: int, usuario: Usuario) -> list[Me
     return [montar_mensagem(item) for item in mensagens]
 
 
+def contem_contato_proibido(texto: str) -> bool:
+    """Identifica número de telefone brasileiro ou referência ao WhatsApp."""
+    return bool(PADRAO_TELEFONE_BR.search(texto) or PADRAO_WHATSAPP.search(texto))
+
+
+def tentativas_de_contato(db: Session, conversa_id: int, usuario_id: int) -> int:
+    """Total persistido de tentativas bloqueadas de contato do usuário nesta conversa."""
+    total = db.scalar(
+        select(func.count(TentativaContato.id)).where(
+            TentativaContato.conversa_id == conversa_id,
+            TentativaContato.usuario_id == usuario_id,
+        )
+    )
+    return int(total or 0)
+
+
+def _registrar_tentativa_contato(
+    db: Session,
+    conversa: Conversa,
+    vaga: Vaga,
+    autor: Usuario,
+    texto: str,
+) -> tuple[int, Denuncia | None]:
+    """Persiste a tentativa bloqueada e abre denúncia automática a partir da 3ª ocorrência."""
+    db.add(
+        TentativaContato(
+            conversa_id=conversa.id,
+            usuario_id=autor.id,
+            conteudo=texto,
+        )
+    )
+    db.flush()
+    tentativas = tentativas_de_contato(db, conversa.id, autor.id)
+
+    denuncia: Denuncia | None = None
+    if tentativas >= LIMITE_TENTATIVAS_CONTATO:
+        denuncia = db.scalar(
+            select(Denuncia)
+            .where(
+                Denuncia.conversa_id == conversa.id,
+                Denuncia.denunciado_id == autor.id,
+                Denuncia.origem == OrigemDenuncia.AUTOMATICA,
+                Denuncia.motivo == MOTIVO_DENUNCIA_CONTATO,
+                Denuncia.estado == EstadoDenuncia.ABERTA,
+            )
+            .order_by(Denuncia.id.desc())
+        )
+        if denuncia is None:
+            denuncia = Denuncia(
+                denunciante_id=None,
+                denunciado_id=autor.id,
+                vaga_id=vaga.id,
+                conversa_id=conversa.id,
+                origem=OrigemDenuncia.AUTOMATICA,
+                motivo=MOTIVO_DENUNCIA_CONTATO,
+                descricao=(
+                    f"Usuário atingiu {tentativas} tentativas bloqueadas de envio de contato "
+                    f"externo na conversa {conversa.id}. Último texto: {texto[:240]}"
+                ),
+                estado=EstadoDenuncia.ABERTA,
+            )
+            db.add(denuncia)
+
+    db.commit()
+    return tentativas, denuncia
+
+
+def _preparar_texto_e_bloquear_contato(
+    db: Session,
+    conversa: Conversa,
+    vaga: Vaga,
+    autor: Usuario,
+    texto: str | None,
+) -> str | None:
+    texto_limpo = texto.strip() if texto is not None else None
+    texto_limpo = texto_limpo or None
+    if texto_limpo is not None and contem_contato_proibido(texto_limpo):
+        tentativas, denuncia = _registrar_tentativa_contato(db, conversa, vaga, autor, texto_limpo)
+        raise erro_http(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "contato_externo_bloqueado",
+            AVISO_CONTATO_BLOQUEADO,
+            tentativas=tentativas,
+            denuncia_aberta=denuncia is not None,
+        )
+    return texto_limpo
+
+
 def registrar_mensagem(
     db: Session,
     conversa: Conversa,
@@ -377,13 +513,12 @@ def registrar_mensagem(
             "Esta conversa está fechada para novas mensagens.",
             vaga_estado=vaga.estado.value,
         )
-    texto_limpo = texto.strip() if texto is not None else None
     anexo_limpo = anexo_url.strip() if anexo_url is not None else None
-    texto_limpo = texto_limpo or None
     anexo_limpo = anexo_limpo or None
+    texto_limpo = _preparar_texto_e_bloquear_contato(db, conversa, vaga, autor, texto)
     if texto_limpo is None and anexo_limpo is None:
         raise erro_http(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "mensagem_vazia",
             "A mensagem precisa ter texto ou anexo.",
         )
@@ -398,6 +533,129 @@ def registrar_mensagem(
     db.commit()
     db.refresh(mensagem)
     return mensagem
+
+
+@dataclass(frozen=True)
+class FormatoAnexo:
+    extensao: str
+    content_type: str
+
+
+def obter_pasta_anexos() -> Path:
+    """Diretório local onde os anexos do chat são gravados."""
+    destino = Path(os.getenv("FREELAI_PASTA_ANEXOS", "./uploads/conversas")).resolve()
+    destino.mkdir(parents=True, exist_ok=True)
+    return destino
+
+
+def _ler_anexo_com_limite(fluxo: BinaryIO, db: Session) -> bytes:
+    limite_mb = max(1, int(configuracao.get("anexo_max_mb", db) or 10))
+    limite_bytes = limite_mb * BYTES_POR_MB
+    partes: list[bytes] = []
+    total = 0
+
+    fluxo.seek(0)
+    while True:
+        bloco = fluxo.read(TAMANHO_BLOCO_ANEXO)
+        if not bloco:
+            break
+        total += len(bloco)
+        if total > limite_bytes:
+            raise erro_http(
+                status.HTTP_413_CONTENT_TOO_LARGE,
+                "arquivo_muito_grande",
+                f"O anexo excede o limite de {limite_mb} MB.",
+                limite_mb=limite_mb,
+            )
+        partes.append(bloco)
+
+    conteudo = b"".join(partes)
+    if not conteudo:
+        raise erro_http(
+            status.HTTP_400_BAD_REQUEST,
+            "arquivo_vazio",
+            "O arquivo enviado está vazio.",
+        )
+    return conteudo
+
+
+def _detectar_formato_anexo(conteudo: bytes) -> FormatoAnexo:
+    if conteudo.startswith(b"\xff\xd8\xff"):
+        return FormatoAnexo("jpg", "image/jpeg")
+    if conteudo.startswith(b"\x89PNG\r\n\x1a\n"):
+        return FormatoAnexo("png", "image/png")
+    if conteudo.startswith(b"%PDF-"):
+        return FormatoAnexo("pdf", "application/pdf")
+    raise erro_http(
+        status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+        "formato_nao_suportado",
+        "Envie apenas imagens JPG/PNG ou arquivos PDF.",
+    )
+
+
+def registrar_mensagem_com_anexo(
+    db: Session,
+    conversa: Conversa,
+    vaga: Vaga,
+    autor: Usuario,
+    *,
+    fluxo: BinaryIO,
+    texto: str | None = None,
+) -> Mensagem:
+    """Valida o anexo e a legenda opcional, grava o arquivo e persiste a mensagem."""
+    aberta = sincronizar_estado_conversa(db, conversa, vaga)
+    if not aberta:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "conversa_fechada",
+            "Esta conversa está fechada para novas mensagens.",
+            vaga_estado=vaga.estado.value,
+        )
+
+    texto_limpo = _preparar_texto_e_bloquear_contato(db, conversa, vaga, autor, texto)
+    conteudo = _ler_anexo_com_limite(fluxo, db)
+    formato = _detectar_formato_anexo(conteudo)
+
+    nome_arquivo = f"{secrets.token_hex(16)}.{formato.extensao}"
+    pasta_conversa = obter_pasta_anexos() / str(conversa.id)
+    pasta_conversa.mkdir(parents=True, exist_ok=True)
+    caminho = pasta_conversa / nome_arquivo
+    caminho.write_bytes(conteudo)
+
+    anexo_url = f"/api/v1/conversas/{conversa.id}/anexos/{nome_arquivo}"
+    mensagem = Mensagem(
+        conversa_id=conversa.id,
+        autor_id=autor.id,
+        texto=texto_limpo,
+        anexo_url=anexo_url,
+    )
+    try:
+        db.add(mensagem)
+        db.commit()
+        db.refresh(mensagem)
+    except Exception:
+        caminho.unlink(missing_ok=True)
+        raise
+    return mensagem
+
+
+def ler_anexo_chat(conversa_id: int, nome: str) -> tuple[bytes, str]:
+    """Lê um anexo salvo localmente validando nome seguro e existência."""
+    if not PADRAO_NOME_ANEXO.fullmatch(nome):
+        raise erro_http(
+            status.HTTP_404_NOT_FOUND,
+            "anexo_nao_encontrado",
+            "Anexo não encontrado.",
+        )
+    caminho = obter_pasta_anexos() / str(conversa_id) / nome
+    if not caminho.is_file():
+        raise erro_http(
+            status.HTTP_404_NOT_FOUND,
+            "anexo_nao_encontrado",
+            "Anexo não encontrado.",
+        )
+    media_type = TIPOS_ANEXO_POR_EXTENSAO.get(caminho.suffix.lower(), "application/octet-stream")
+    return caminho.read_bytes(), media_type
 
 
 def marcar_visto(db: Session, conversa_id: int, usuario: Usuario) -> ResultadoVisto:

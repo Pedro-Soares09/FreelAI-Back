@@ -2,15 +2,19 @@
 
 import time
 from datetime import timedelta
+from io import BytesIO
+from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.orm import sessionmaker
 from starlette.websockets import WebSocketDisconnect
 
-from app.models import Conversa, EstadoConta, EstadoVaga, TipoPerfil
+from app.models import Conversa, EstadoConta, EstadoVaga, PapelUsuario, TipoPerfil
 from app.security import create_access_token, create_refresh_token
 from app.services import conversas, pagamentos
 from app.services.conversas import (
+    MOTIVO_DENUNCIA_CONTATO,
     WS_CODIGO_NAO_AUTENTICADO,
     WS_CODIGO_NAO_ENCONTRADA,
     WS_CODIGO_SEM_ACESSO,
@@ -21,6 +25,18 @@ from tests.fabricas import cabecalho, criar_cenario_vaga, criar_usuario
 
 def _token(usuario) -> str:
     return create_access_token(str(usuario.id))
+
+
+@pytest.fixture(autouse=True)
+def _pasta_anexos_temporaria(monkeypatch, tmp_path):
+    pasta = tmp_path / "anexos"
+
+    def _obter() -> Path:
+        pasta.mkdir(parents=True, exist_ok=True)
+        return pasta
+
+    monkeypatch.setattr(conversas, "obter_pasta_anexos", _obter)
+    return pasta
 
 
 # --- Regras de abertura e fechamento por estado da vaga ----------------------------------
@@ -508,3 +524,305 @@ def test_websocket_aceita_cabecalho_authorization_bearer(cliente, db):
         headers=cabecalho(cenario.contratante),
     )
     assert [m["texto"] for m in historico.json()] == ["Via header Authorization"]
+
+
+# --- Bloqueio de contato externo, contador persistido, denúncia e anexos (US46) --------
+
+
+@pytest.mark.parametrize(
+    "mensagem_bloqueada",
+    [
+        "Meu número é 81.9.9999.9999",
+        "Liga para 81 9 9999 9999",
+        "Novo numero 81.99999.9999",
+        "Contato 81 99999 9999",
+        "Chama no +55.81.9.8888.7777",
+        "Me liga +55 81 9 8888 7777",
+        "Fixo 81.3333.4444",
+        "Fixo 81 3333 4444",
+        "Fala no 9.9999.9999",
+        "Ou no 9999 8888",
+        "Salva aí (81) 99999-9999",
+        "Sem máscara 81999998888",
+        "Passa seu WhatsApp",
+        "Chama no zap mais tarde",
+        "Manda no wpp",
+        "Link wa.me/5581999999999",
+    ],
+)
+def test_filtro_barra_telefone_brasileiro_e_palavras_de_whatsapp(
+    cliente, db, mensagem_bloqueada
+):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+
+    resposta = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        json={"texto": mensagem_bloqueada},
+        headers=cabecalho(cenario.contratante),
+    )
+    assert resposta.status_code == 422
+    detalhe = resposta.json()["detail"]
+    assert detalhe["codigo"] == "contato_externo_bloqueado"
+    assert detalhe["tentativas"] == 1
+    assert detalhe["denuncia_aberta"] is False
+
+    historico = cliente.get(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        headers=cabecalho(cenario.contratante),
+    )
+    assert historico.json() == []
+
+
+def test_filtro_permite_mensagens_normais_com_horarios_e_valores(cliente, db):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+    mensagens_normais = [
+        "Dia 20.11.2026 às 14h no local combinado",
+        "Valor acordado R$ 1.500,00 via plataforma",
+        "CEP 50000-000, bloco 12, sala 304",
+        "Pedido 2026/11 confirmado para amanhã",
+    ]
+
+    for texto in mensagens_normais:
+        resposta = cliente.post(
+            f"/api/v1/conversas/{conversa.id}/mensagens",
+            json={"texto": texto},
+            headers=cabecalho(cenario.contratante),
+        )
+        assert resposta.status_code == 201, texto
+
+    historico = cliente.get(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        headers=cabecalho(cenario.profissional),
+    )
+    assert [m["texto"] for m in historico.json()] == mensagens_normais
+
+
+def test_websocket_barra_telefone_envia_aviso_ao_remetente_e_nao_transmite_ao_outro_lado(
+    cliente, db
+):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+
+    with (
+        cliente.websocket_connect(
+            f"/api/v1/conversas/{conversa.id}/ws?token={_token(cenario.contratante)}"
+        ) as ws_contratante,
+        cliente.websocket_connect(
+            f"/api/v1/conversas/{conversa.id}/ws?token={_token(cenario.profissional)}"
+        ) as ws_profissional,
+    ):
+        ws_contratante.send_json({"texto": "Me chama no 81 9 9999 9999"})
+        aviso = ws_contratante.receive_json()
+        assert aviso["tipo"] == "erro"
+        assert aviso["codigo"] == "contato_externo_bloqueado"
+        assert aviso["tentativas"] == 1
+        assert aviso["denuncia_aberta"] is False
+
+        ws_contratante.send_json({"texto": "Combinado às 14h"})
+        confirmada = ws_contratante.receive_json()
+        recebida = ws_profissional.receive_json()
+        assert confirmada["texto"] == "Combinado às 14h"
+        assert recebida["texto"] == "Combinado às 14h"
+
+
+def test_terceira_tentativa_cria_denuncia_automatica_visivel_no_admin(cliente, db):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+    admin = criar_usuario(db, papel=PapelUsuario.ADMIN)
+
+    # Usuário comum não acessa painel admin de denúncias
+    negado = cliente.get("/api/v1/admin/denuncias", headers=cabecalho(cenario.contratante))
+    assert negado.status_code == 403
+
+    for tentativa in (1, 2):
+        resp = cliente.post(
+            f"/api/v1/conversas/{conversa.id}/mensagens",
+            json={"texto": f"Tentativa {tentativa}: 81.9.9999.9999"},
+            headers=cabecalho(cenario.contratante),
+        )
+        assert resp.status_code == 422
+        assert resp.json()["detail"]["tentativas"] == tentativa
+        assert resp.json()["detail"]["denuncia_aberta"] is False
+
+    assert cliente.get("/api/v1/admin/denuncias", headers=cabecalho(admin)).json() == []
+
+    terceira = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        json={"texto": "Tentativa 3: chama no whatsapp"},
+        headers=cabecalho(cenario.contratante),
+    )
+    assert terceira.status_code == 422
+    assert terceira.json()["detail"]["tentativas"] == 3
+    assert terceira.json()["detail"]["denuncia_aberta"] is True
+
+    denuncias = cliente.get(
+        "/api/v1/admin/denuncias?origem=automatica&estado=aberta",
+        headers=cabecalho(admin),
+    )
+    assert denuncias.status_code == 200
+    itens = denuncias.json()
+    assert len(itens) == 1
+    assert itens[0]["denunciante_id"] is None
+    assert itens[0]["denunciado_id"] == cenario.contratante.id
+    assert itens[0]["vaga_id"] == cenario.vaga.id
+    assert itens[0]["conversa_id"] == conversa.id
+    assert itens[0]["origem"] == "automatica"
+    assert itens[0]["motivo"] == MOTIVO_DENUNCIA_CONTATO
+    assert itens[0]["estado"] == "aberta"
+
+
+def test_contador_de_tentativas_persiste_no_banco_entre_sessoes_independentes(
+    cliente, db, engine
+):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+
+    for tentativa in (1, 2):
+        resp = cliente.post(
+            f"/api/v1/conversas/{conversa.id}/mensagens",
+            json={"texto": f"Tenta zap {tentativa}"},
+            headers=cabecalho(cenario.profissional),
+        )
+        assert resp.status_code == 422
+        assert resp.json()["detail"]["tentativas"] == tentativa
+
+    sessao_fabrica = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    with sessao_fabrica() as sessao_nova:
+        assert (
+            conversas.tentativas_de_contato(sessao_nova, conversa.id, cenario.profissional.id)
+            == 2
+        )
+
+    terceira = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        json={"texto": "Tenta 81 9 9999 9999"},
+        headers=cabecalho(cenario.profissional),
+    )
+    assert terceira.status_code == 422
+    assert terceira.json()["detail"]["tentativas"] == 3
+    assert terceira.json()["detail"]["denuncia_aberta"] is True
+
+    with sessao_fabrica() as sessao_final:
+        assert (
+            conversas.tentativas_de_contato(sessao_final, conversa.id, cenario.profissional.id)
+            == 3
+        )
+
+
+def test_envio_de_anexo_de_imagem_e_pdf_no_chat_e_recusa_acima_de_10_mb(
+    cliente, db, _pasta_anexos_temporaria
+):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+    terceiro = criar_usuario(
+        db,
+        perfis=(TipoPerfil.CONTRATANTE,),
+        perfil_ativo=TipoPerfil.CONTRATANTE,
+    )
+
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"conteudo-png-valido"
+    pdf_bytes = b"%PDF-1.4\n1 0 obj\n%%EOF"
+
+    with cliente.websocket_connect(
+        f"/api/v1/conversas/{conversa.id}/ws?token={_token(cenario.profissional)}"
+    ) as ws_profissional:
+        envio_png = cliente.post(
+            f"/api/v1/conversas/{conversa.id}/anexos",
+            files={"arquivo": ("local.png", BytesIO(png_bytes), "image/png")},
+            data={"texto": "Foto do local"},
+            headers=cabecalho(cenario.contratante),
+        )
+        assert envio_png.status_code == 201
+        corpo_png = envio_png.json()
+        assert corpo_png["texto"] == "Foto do local"
+        assert corpo_png["anexo_url"].startswith(f"/api/v1/conversas/{conversa.id}/anexos/")
+        assert corpo_png["anexo_url"].endswith(".png")
+
+        recebida_ws = ws_profissional.receive_json()
+        assert recebida_ws["anexo_url"] == corpo_png["anexo_url"]
+        assert recebida_ws["texto"] == "Foto do local"
+
+    # Participante baixa o anexo; terceiro e não autenticado são bloqueados
+    assert cliente.get(corpo_png["anexo_url"]).status_code == 401
+    assert cliente.get(corpo_png["anexo_url"], headers=cabecalho(terceiro)).status_code == 403
+    download_png = cliente.get(corpo_png["anexo_url"], headers=cabecalho(cenario.profissional))
+    assert download_png.status_code == 200
+    assert download_png.headers["content-type"].startswith("image/png")
+    assert download_png.content == png_bytes
+
+    # PDF sem legenda
+    envio_pdf = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/anexos",
+        files={"arquivo": ("briefing.pdf", BytesIO(pdf_bytes), "application/pdf")},
+        headers=cabecalho(cenario.profissional),
+    )
+    assert envio_pdf.status_code == 201
+    corpo_pdf = envio_pdf.json()
+    assert corpo_pdf["texto"] is None
+    assert corpo_pdf["anexo_url"].endswith(".pdf")
+    download_pdf = cliente.get(corpo_pdf["anexo_url"], headers=cabecalho(cenario.contratante))
+    assert download_pdf.status_code == 200
+    assert download_pdf.headers["content-type"].startswith("application/pdf")
+    assert download_pdf.content == pdf_bytes
+
+    # Tipo inválido -> 415
+    invalido = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/anexos",
+        files={"arquivo": ("script.txt", BytesIO(b"texto simples"), "text/plain")},
+        headers=cabecalho(cenario.contratante),
+    )
+    assert invalido.status_code == 415
+    assert invalido.json()["detail"]["codigo"] == "formato_nao_suportado"
+
+    # Vazio -> 400
+    vazio = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/anexos",
+        files={"arquivo": ("vazio.png", BytesIO(b""), "image/png")},
+        headers=cabecalho(cenario.contratante),
+    )
+    assert vazio.status_code == 400
+    assert vazio.json()["detail"]["codigo"] == "arquivo_vazio"
+
+    # Acima de 10 MB -> 413
+    grande = b"\x89PNG\r\n\x1a\n" + b"a" * (10 * 1024 * 1024)
+    recusado_tamanho = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/anexos",
+        files={"arquivo": ("enorme.png", BytesIO(grande), "image/png")},
+        headers=cabecalho(cenario.contratante),
+    )
+    assert recusado_tamanho.status_code == 413
+    assert recusado_tamanho.json()["detail"]["codigo"] == "arquivo_muito_grande"
+
+    # Legenda com telefone é bloqueada e NÃO grava o arquivo em disco
+    arquivos_antes = list(_pasta_anexos_temporaria.rglob("*"))
+    recusado_legenda = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/anexos",
+        files={"arquivo": ("comprovante.png", BytesIO(png_bytes), "image/png")},
+        data={"texto": "Chama no 81.9.9999.9999"},
+        headers=cabecalho(cenario.contratante),
+    )
+    assert recusado_legenda.status_code == 422
+    assert recusado_legenda.json()["detail"]["codigo"] == "contato_externo_bloqueado"
+    assert list(_pasta_anexos_temporaria.rglob("*")) == arquivos_antes
+
+    # Traversal / inexistente -> 404
+    assert (
+        cliente.get(
+            f"/api/v1/conversas/{conversa.id}/anexos/inexistente.png",
+            headers=cabecalho(cenario.contratante),
+        ).status_code
+        == 404
+    )
+
+    # Conversa fechada -> 409
+    cenario.vaga.estado = EstadoVaga.CANCELADA
+    db.commit()
+    fechada = cliente.post(
+        f"/api/v1/conversas/{conversa.id}/anexos",
+        files={"arquivo": ("local.png", BytesIO(png_bytes), "image/png")},
+        headers=cabecalho(cenario.contratante),
+    )
+    assert fechada.status_code == 409
+    assert fechada.json()["detail"]["codigo"] == "conversa_fechada"
