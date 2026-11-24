@@ -111,12 +111,11 @@ class PerfilProfissional(MarcaTempo, Base):
     verificacao: Mapped[StatusAprovacao] = mapped_column(
         _enum(StatusAprovacao), default=StatusAprovacao.PENDENTE
     )
-    pro: Mapped[bool] = mapped_column(
-    Boolean,
-    default=False,
-    server_default=false()
-    )
+    pro: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     verificacao_motivo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    verificacao_enviada_em: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     experiencia_aprovada: Mapped[StatusAprovacao] = mapped_column(
         _enum(StatusAprovacao), default=StatusAprovacao.PENDENTE
     )
@@ -142,6 +141,10 @@ class PerfilContratante(MarcaTempo, Base):
     selfie_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     verificacao: Mapped[StatusAprovacao] = mapped_column(
         _enum(StatusAprovacao), default=StatusAprovacao.PENDENTE
+    )
+    verificacao_motivo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    verificacao_enviada_em: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     usuario: Mapped[Usuario] = relationship(back_populates="perfil_contratante")
@@ -262,4 +265,3 @@ class Arquivo(Base):
     mime_type: Mapped[str] = mapped_column(String(64))
     tamanho_bytes: Mapped[int] = mapped_column(Integer)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
-
