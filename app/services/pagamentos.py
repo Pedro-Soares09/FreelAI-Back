@@ -36,7 +36,7 @@ from app.models import (
     Usuario,
     Vaga,
 )
-from app.services import biometria, configuracao
+from app.services import biometria, configuracao, notificacoes
 from app.services.varreduras import varredura
 from app.tempo import agora, como_utc
 
@@ -337,6 +337,7 @@ def reter(db: Session, pagamento: Pagamento) -> Pagamento:
     )
     pagamento.estado = EstadoPagamento.RETIDO
     vaga.estado = EstadoVaga.CONTRATADA
+    notificacoes.notificar_pagamento_retido(db, vaga, pagamento, commit=False)
     db.commit()
     db.refresh(pagamento)
     return pagamento
@@ -355,6 +356,7 @@ def liberar_integral(db: Session, pagamento: Pagamento) -> Pagamento:
     _lancar(db, pagamento, TipoLancamento.TAXA_PLATAFORMA, taxa, "Taxa da plataforma")
     pagamento.estado = EstadoPagamento.LIBERADO
     vaga.estado = EstadoVaga.LIBERADA
+    notificacoes.notificar_pagamento_liberado(db, vaga, parcial=False, commit=False)
     _fechar_conversa(db, vaga.id)
     db.commit()
     db.refresh(pagamento)
@@ -389,6 +391,7 @@ def liberar_parcial(db: Session, pagamento: Pagamento, percentual: Decimal | int
     _lancar(db, pagamento, TipoLancamento.ESTORNO, estorno, "Estorno parcial ao contratante")
     pagamento.estado = EstadoPagamento.LIBERADO_PARCIAL
     vaga.estado = EstadoVaga.LIBERADA_PARCIAL
+    notificacoes.notificar_pagamento_liberado(db, vaga, parcial=True, commit=False)
     _fechar_conversa(db, vaga.id)
     db.commit()
     db.refresh(pagamento)
@@ -450,6 +453,7 @@ def confirmar_conclusao(db: Session, vaga: Vaga, contratante_usuario_id: int) ->
             fim_em=fim.isoformat(),
         )
     vaga.estado = EstadoVaga.CONCLUIDA
+    notificacoes.notificar_avaliacao_pendente(db, vaga, commit=False)
     _incrementar_servicos_concluidos(db, vaga)
     db.commit()
     db.refresh(vaga)
@@ -545,6 +549,7 @@ def concluir_automaticamente(db: Session) -> int:
     vencidas = _vagas_com_fim_vencido(db, ESTADOS_CONCLUIVEIS, "confirmacao_conclusao_min")
     for vaga in vencidas:
         vaga.estado = EstadoVaga.CONCLUIDA
+        notificacoes.notificar_avaliacao_pendente(db, vaga, commit=False)
         _incrementar_servicos_concluidos(db, vaga)
     if vencidas:
         db.commit()
