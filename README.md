@@ -61,10 +61,54 @@ Rotas provisórias (`app/api/v1/stubs.py`) devolvem dados de exemplo, com o cabe
 
 - `GET /api/v1/vagas/{vaga_id}`
 - `GET /api/v1/vagas/{vaga_id}/acordo`
-- `GET /api/v1/conversas/{conversa_id}`
 - `GET /api/v1/mapa/pontos`
 
 O campo `verificado` vem de `GET /api/v1/auth/me`.
+
+## Chat e conversas
+
+A conversa nasce somente no aceite do convite (`abrir_conversa_no_aceite`, 1 por vaga) e mantém o
+vínculo entre `vaga_id` e `conversa_id`. Fecha para escrita automaticamente quando a vaga cai
+(`expirada`, `cancelada`, `falta`, `reembolsada` ou devolvida à publicação) ou é encerrada
+financeiramente (`liberada`, `liberada_parcial`).
+
+Como o navegador não envia cabeçalhos no handshake do WebSocket, há duas formas de autenticar:
+
+1. **Query string (`?token=<access_token>`, padrão `auth=query`)**: validado antes do `accept()`,
+   fechando imediatamente com `4401` em caso de token ausente ou inválido. **Atenção:** tokens na
+   query string podem ser registrados em logs de acesso/proxy; configure redação do parâmetro
+   `token` no proxy ou prefira o modo abaixo.
+2. **Primeira mensagem (`?auth=mensagem`, recomendada para evitar JWT em logs)**: aceita o socket,
+   aguarda até 5s pela primeira mensagem JSON `{"tipo": "auth", "token": "<jwt>"}`, responde
+   `{"tipo": "autenticado", "conversa_id": ..., "usuario_id": ...}` e fecha com `4401` se falhar.
+
+Clientes fora do navegador também podem enviar o cabeçalho `Authorization: Bearer <jwt>`.
+Em qualquer modo, usuário fora da vaga fecha com `4403` e conversa inexistente fecha com `4404`.
+O endpoint WebSocket abre uma sessão curta de banco apenas durante a autenticação e no
+processamento de cada mensagem, sem manter conexões do pool presas enquanto o socket está ocioso.
+
+Rotas (tag `conversas`):
+
+- `GET /api/v1/conversas`: lista as conversas do usuário com `outra_parte`, `ultima_mensagem` e
+  contagem de `nao_lidas`.
+- `GET /api/v1/conversas/{conversa_id}`: resumo da conversa com `vaga_id` e estado `aberta`.
+- `GET /api/v1/vagas/{vaga_id}/conversa`: ponto de integração que resolve a conversa a partir do
+  `vaga_id`.
+- `GET /api/v1/conversas/{conversa_id}/mensagens`: histórico de mensagens em ordem cronológica.
+- `POST /api/v1/conversas/{conversa_id}/mensagens`: persiste mensagem (`texto` e/ou `anexo_url`) e
+  transmite em tempo real aos conectados.
+- `POST /api/v1/conversas/{conversa_id}/anexos`: envia anexo JPG/PNG/PDF até `anexo_max_mb` MB
+  (`multipart/form-data`, campo `arquivo` e `texto` opcional) e transmite aos conectados.
+- `GET /api/v1/conversas/{conversa_id}/anexos/{nome}`: entrega o anexo restrito aos participantes.
+- `POST /api/v1/conversas/{conversa_id}/visto`: marca como lidas as mensagens recebidas da outra
+  parte.
+- `WS /api/v1/conversas/{conversa_id}/ws?token=<jwt>` (ou `?auth=mensagem`): canal em tempo real
+  com broadcast em memória.
+
+Mensagens no REST, WebSocket e legendas de anexos passam pelo bloqueio de telefone brasileiro e
+referências ao WhatsApp (`422 contato_externo_bloqueado` no REST ou evento `erro` ao remetente no
+WebSocket). Cada tentativa bloqueada é persistida na tabela `tentativas_contato` por
+`(conversa_id, usuario_id)` e abre uma denúncia automática a partir da 3ª tentativa.
 
 ## Pagamento
 
@@ -107,6 +151,7 @@ Rotas administrativas (exigem conta com papel `admin`):
 - `POST /api/v1/admin/prazos/varrer`: força a execução imediata das varreduras de prazo
   registradas com `@varredura("nome")` em `app/services/varreduras.py`.
 - `GET /api/v1/admin/configuracoes`: valores efetivos do perfil atual.
+- `GET /api/v1/admin/denuncias`: lista denúncias registradas (com filtros opcionais `estado` e `origem`).
 
 ## Match
 
@@ -227,3 +272,6 @@ ser usado com `docker run`.
 - O token de renovação não serve como token de acesso. Os tokens de renovação não são revogados
   individualmente: uma troca de senha não invalida os já emitidos.
 - O SQLite é aberto com chaves estrangeiras ativas, para se comportar como o PostgreSQL.
+- No WebSocket do chat, passar o JWT via `?token=<jwt>` pode registrar o token em logs de acesso e
+  proxies; prefira `?auth=mensagem` (enviando o token na primeira mensagem JSON) ou faça redação do
+  parâmetro `token` nos logs do proxy reverso.
