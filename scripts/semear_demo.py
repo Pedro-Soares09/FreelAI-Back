@@ -192,7 +192,7 @@ def semear_marketplace(db) -> None:
         perfil.verificacao = StatusAprovacao.APROVADO
         perfil.experiencia_aprovada = StatusAprovacao.APROVADO
         perfil.categorias = list(por_slug.values())
-        for slug, categoria in por_slug.items():
+        for categoria in por_slug.values():
             db.add(
                 Experiencia(
                     profissional_id=perfil.id,
