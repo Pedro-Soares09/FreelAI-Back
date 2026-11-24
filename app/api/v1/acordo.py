@@ -81,8 +81,10 @@ def _perfil_resumo(db: Session, usuario: Usuario, verificado: bool, novo: bool) 
 
 
 def _horas(minutos: float) -> str:
-    horas = minutos / 60
-    return f"{horas:g}"
+    """Prazo legível: em horas quando passa de uma hora, em minutos nos perfis de demonstração."""
+    if minutos < 60:
+        return f"{minutos:g} min"
+    return f"{minutos / 60:g} h"
 
 
 def _dados(db: Session, vaga: Vaga) -> DadosAcordo:
@@ -117,13 +119,13 @@ def _dados(db: Session, vaga: Vaga) -> DadosAcordo:
         condicoes_pagamento=vaga.condicoes_pagamento
         or (
             "Pix pago pelo contratante, retido pela plataforma e liberado ao profissional "
-            f"após a conclusão ({janela_conclusao} h para confirmar)."
+            f"após a conclusão ({janela_conclusao} para confirmar)."
         ),
         regras_cancelamento=(
-            f"Cancelar com menos de {atraso} h de antecedência gera advertência ao autor."
+            f"Cancelar com menos de {atraso} de antecedência gera advertência ao autor."
         ),
         condicoes_avaliacao=(
-            f"Avaliação mútua de 1 a 5 em até {prazo_avaliacao} h após a conclusão."
+            f"Avaliação mútua de 1 a 5 em até {prazo_avaliacao} após a conclusão."
         ),
         versao_termos=contrato.versao_termos if contrato else VERSAO_TERMOS,
         profissional=_perfil_resumo(
