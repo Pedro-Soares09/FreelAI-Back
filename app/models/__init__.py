@@ -36,6 +36,7 @@ from app.models.enums import (  # noqa: F401
 )
 from app.models.nucleo import (  # noqa: F401
     Arquivo,
+    AssinaturaPro,
     Categoria,
     ChecklistItem,
     Configuracao,

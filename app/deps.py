@@ -26,6 +26,8 @@ def _nao_autenticado():
 
 def barrar_conta_bloqueada(usuario: Usuario, db: Session) -> None:
     """Impede o uso de contas banidas ou suspensas. Suspensões vencidas são encerradas."""
+    if usuario.excluida_em is not None:
+        raise erro_http(status.HTTP_403_FORBIDDEN, "conta_excluida", "Esta conta foi excluída.")
     if usuario.estado == EstadoConta.BANIDA:
         raise erro_http(status.HTTP_403_FORBIDDEN, "conta_banida", "Esta conta foi banida.")
     if usuario.estado == EstadoConta.SUSPENSA:
@@ -71,7 +73,6 @@ def usuario_opcional(
     if credenciais is None:
         return None
     return usuario_atual(credenciais, db)
-
 
 
 # Nome mantido para as rotas anteriores à versão 1.
