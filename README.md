@@ -61,10 +61,54 @@ Rotas provisórias (`app/api/v1/stubs.py`) devolvem dados de exemplo, com o cabe
 
 - `GET /api/v1/vagas/{vaga_id}`
 - `GET /api/v1/vagas/{vaga_id}/acordo`
-- `GET /api/v1/conversas/{conversa_id}`
 - `GET /api/v1/mapa/pontos`
 
 O campo `verificado` vem de `GET /api/v1/auth/me`.
+
+## Chat e conversas
+
+A conversa nasce somente no aceite do convite (`abrir_conversa_no_aceite`, 1 por vaga) e mantém o
+vínculo entre `vaga_id` e `conversa_id`. Fecha para escrita automaticamente quando a vaga cai
+(`expirada`, `cancelada`, `falta`, `reembolsada` ou devolvida à publicação) ou é encerrada
+financeiramente (`liberada`, `liberada_parcial`).
+
+Como o navegador não envia cabeçalhos no handshake do WebSocket, há duas formas de autenticar:
+
+1. **Query string (`?token=<access_token>`, padrão `auth=query`)**: validado antes do `accept()`,
+   fechando imediatamente com `4401` em caso de token ausente ou inválido. **Atenção:** tokens na
+   query string podem ser registrados em logs de acesso/proxy; configure redação do parâmetro
+   `token` no proxy ou prefira o modo abaixo.
+2. **Primeira mensagem (`?auth=mensagem`, recomendada para evitar JWT em logs)**: aceita o socket,
+   aguarda até 5s pela primeira mensagem JSON `{"tipo": "auth", "token": "<jwt>"}`, responde
+   `{"tipo": "autenticado", "conversa_id": ..., "usuario_id": ...}` e fecha com `4401` se falhar.
+
+Clientes fora do navegador também podem enviar o cabeçalho `Authorization: Bearer <jwt>`.
+Em qualquer modo, usuário fora da vaga fecha com `4403` e conversa inexistente fecha com `4404`.
+O endpoint WebSocket abre uma sessão curta de banco apenas durante a autenticação e no
+processamento de cada mensagem, sem manter conexões do pool presas enquanto o socket está ocioso.
+
+Rotas (tag `conversas`):
+
+- `GET /api/v1/conversas`: lista as conversas do usuário com `outra_parte`, `ultima_mensagem` e
+  contagem de `nao_lidas`.
+- `GET /api/v1/conversas/{conversa_id}`: resumo da conversa com `vaga_id` e estado `aberta`.
+- `GET /api/v1/vagas/{vaga_id}/conversa`: ponto de integração que resolve a conversa a partir do
+  `vaga_id`.
+- `GET /api/v1/conversas/{conversa_id}/mensagens`: histórico de mensagens em ordem cronológica.
+- `POST /api/v1/conversas/{conversa_id}/mensagens`: persiste mensagem (`texto` e/ou `anexo_url`) e
+  transmite em tempo real aos conectados.
+- `POST /api/v1/conversas/{conversa_id}/anexos`: envia anexo JPG/PNG/PDF até `anexo_max_mb` MB
+  (`multipart/form-data`, campo `arquivo` e `texto` opcional) e transmite aos conectados.
+- `GET /api/v1/conversas/{conversa_id}/anexos/{nome}`: entrega o anexo restrito aos participantes.
+- `POST /api/v1/conversas/{conversa_id}/visto`: marca como lidas as mensagens recebidas da outra
+  parte.
+- `WS /api/v1/conversas/{conversa_id}/ws?token=<jwt>` (ou `?auth=mensagem`): canal em tempo real
+  com broadcast em memória.
+
+Mensagens no REST, WebSocket e legendas de anexos passam pelo bloqueio de telefone brasileiro e
+referências ao WhatsApp (`422 contato_externo_bloqueado` no REST ou evento `erro` ao remetente no
+WebSocket). Cada tentativa bloqueada é persistida na tabela `tentativas_contato` por
+`(conversa_id, usuario_id)` e abre uma denúncia automática a partir da 3ª tentativa.
 
 ## Pagamento
 
@@ -144,6 +188,48 @@ de uma vaga (`vaga_id`) ou de uma conversa de chat (`conversa_id`), informando `
 A distância usa a fórmula de Haversine (`app/services/geo.py`), com uma caixa de latitude e
 longitude como pré-filtro no SQL.
 
+## Avaliação mútua, reputação 70/20/10 e selo Novo
+
+Após a conclusão do serviço (`concluida`, `liberada` ou `liberada_parcial`), contratante e
+profissional têm **48 horas** (`avaliacao_prazo_min`) para avaliar a outra parte com nota de 1 a 5
+e comentário (`app/services/avaliacoes.py`). A avaliação enviada por um lado permanece oculta
+(`visivel_em = null`) até que o outro lado também avalie ou o prazo de 48h encerre (varredura
+`revelacao_avaliacoes`).
+
+O selo **Novo** permanece ativo até o **5º serviço concluído** (`servicos_concluidos <= 5`) e
+desaparece ao concluir o **6º serviço**.
+
+Rotas (tag `avaliacoes`):
+
+- `POST /api/v1/vagas/{vaga_id}/avaliacoes`: registra a avaliação (1 a 5 e comentário opcional).
+- `GET /api/v1/vagas/{vaga_id}/avaliacoes`: estado das avaliações da vaga (oculta a nota da outra
+  parte até ambos avaliarem ou o prazo acabar).
+- `GET /api/v1/usuarios/{usuario_id}/avaliacoes`: avaliações já reveladas recebidas pelo usuário.
+- `GET /api/v1/usuarios/{usuario_id}/reputacao`: reputação 70/20/10 detalhada e selo Novo.
+
+### Fórmula da reputação (70 / 20 / 10)
+
+```text
+Reputação = 0,70 × Média
+          + 0,20 × [ 5 × (1 - taxa_cancelamento_tardio_nos_últimos_20) ]
+          + 0,10 × max(0, 5 - 2 × denúncias_procedentes)
+```
+
+- **Média (70%)**: média das avaliações visíveis (1 a 5); quem ainda não possui avaliação visível
+  começa com média neutra **4,0**.
+- **Cancelamentos (20%)**: `5 × (1 - taxa)`, onde `taxa` é a proporção de cancelamentos tardios nos
+  últimos 20 compromissos.
+- **Denúncias (10%)**: começa em `5,0` e perde `2,0` pontos por denúncia procedente (mínimo `0,0`).
+
+Exemplos verificados pelos testes automatizados (`tests/test_avaliacoes.py`):
+
+| Cenário | Média (70%) | Cancelamentos tardios nos últimos 20 (20%) | Denúncias procedentes (10%) | Cálculo | Reputação final |
+| :--- | :---: | :---: | :---: | :--- | :---: |
+| **1. Conta nova (neutra)** | Sem avaliações → `4,0` | `0 / 20` (`taxa = 0%`) → `5,0` | `0` → `5,0` | `0,70×4,0 + 0,20×5,0 + 0,10×5,0` | **4,30** |
+| **2. Profissional exemplar** | Média `5,0` | `0 / 20` (`taxa = 0%`) → `5,0` | `0` → `5,0` | `0,70×5,0 + 0,20×5,0 + 0,10×5,0` | **5,00** |
+| **3. Com 1 cancelamento tardio e 1 denúncia** | Média `4,5` | `1 / 20` (`taxa = 5%`) → `4,75` | `1` → `3,0` | `0,70×4,5 + 0,20×4,75 + 0,10×3,0` | **4,40** |
+| **4. Reincidente (5 cancelamentos e 3 denúncias)** | Média `3,0` | `5 / 20` (`taxa = 25%`) → `3,75` | `3` → `max(0, 5-6) = 0,0` | `0,70×3,0 + 0,20×3,75 + 0,10×0,0` | **2,85** |
+
 ## Estrutura
 
 ```
@@ -204,3 +290,6 @@ ser usado com `docker run`.
 - O token de renovação não serve como token de acesso. Os tokens de renovação não são revogados
   individualmente: uma troca de senha não invalida os já emitidos.
 - O SQLite é aberto com chaves estrangeiras ativas, para se comportar como o PostgreSQL.
+- No WebSocket do chat, passar o JWT via `?token=<jwt>` pode registrar o token em logs de acesso e
+  proxies; prefira `?auth=mensagem` (enviando o token na primeira mensagem JSON) ou faça redação do
+  parâmetro `token` nos logs do proxy reverso.

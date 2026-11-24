@@ -127,9 +127,7 @@ def _resolver_referencias(
                 "nao_participa_da_vaga",
                 "Somente participantes da vaga ou conversa podem abrir denúncia vinculada a ela.",
             )
-        outra_parte = (
-            profissional_uid if denunciante.id == contratante_uid else contratante_uid
-        )
+        outra_parte = profissional_uid if denunciante.id == contratante_uid else contratante_uid
         if denunciado_id is None:
             if outra_parte is None:
                 raise erro_http(
@@ -214,9 +212,7 @@ def listar_denuncias_do_usuario(db: Session, usuario: Usuario) -> list[DenunciaP
     """Lista as denúncias relacionadas ao usuário (enviadas ou recebidas) sem `denunciante_id`."""
     itens = db.scalars(
         select(Denuncia)
-        .where(
-            (Denuncia.denunciante_id == usuario.id) | (Denuncia.denunciado_id == usuario.id)
-        )
+        .where((Denuncia.denunciante_id == usuario.id) | (Denuncia.denunciado_id == usuario.id))
         .order_by(Denuncia.id.desc())
     ).all()
     return [montar_resumo_publico(item) for item in itens]
@@ -264,9 +260,7 @@ def montar_item_fila_admin(
 ) -> DenunciaFilaAdmin:
     """Monta o item da fila administrativa com cálculo de espera e meta de 48h úteis."""
     criado = como_utc(denuncia.criado_em)
-    fim_espera = (
-        como_utc(denuncia.decidido_em) if denuncia.decidido_em is not None else agora()
-    )
+    fim_espera = como_utc(denuncia.decidido_em) if denuncia.decidido_em is not None else agora()
     espera_segundos = max(0.0, (fim_espera - criado).total_seconds())
     espera_minutos = int(espera_segundos // 60)
     horas_uteis = calcular_horas_uteis(criado, fim_espera)

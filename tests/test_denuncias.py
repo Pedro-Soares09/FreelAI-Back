@@ -211,9 +211,7 @@ def test_recusa_autodenuncia_e_terceiro_fora_da_vaga(cliente, db):
 # --- Decisão no admin: procedente / improcedente, impacto em reputação e US58 ------------
 
 
-def test_decisao_procedente_e_improcedente_com_motivo_conta_para_us58_e_reputacao(
-    cliente, db
-):
+def test_decisao_procedente_e_improcedente_com_motivo_conta_para_us58_e_reputacao(cliente, db):
     fixar_relogio(QUINTA)
     denunciante = criar_usuario(db)
     denunciado = criar_usuario(db)
