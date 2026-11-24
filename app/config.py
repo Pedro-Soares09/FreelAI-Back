@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     refresh_token_expire_minutes: int = 60 * 24 * 7
     cors_origins: list[str] = ["http://localhost:3000"]
     uploads_dir: str = "uploads"
+    # Procura bairros desconhecidos no OpenStreetMap (Nominatim); desligado por padrão.
+    geocodificacao_osm: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

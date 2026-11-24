@@ -120,4 +120,10 @@ class TipoArquivo(StrEnum):
     QUALIFICACAO = "qualificacao"
     EPI = "epi"
     ANEXO = "anexo"
+    COMPROVANTE = "comprovante"
 
+
+class TipoComprovante(StrEnum):
+    SERVICO = "servico"
+    HORAS_EXTRAS = "horas_extras"
+    BONUS = "bonus"

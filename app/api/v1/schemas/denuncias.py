@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models import EstadoDenuncia, OrigemDenuncia
+from app.models import EstadoConta, EstadoDenuncia, OrigemDenuncia
 
 
 class DenunciaEntrada(BaseModel):
@@ -129,6 +129,13 @@ class DenunciaFilaAdmin(BaseModel):
         default=0,
         description="Total de denúncias procedentes acumuladas pelo denunciado.",
     )
+    denunciado_estado: EstadoConta | None = Field(
+        default=None, description="Situação atual da conta denunciada (banida após 2 penalidades)."
+    )
+    conversa_bloqueada: bool = Field(
+        default=False,
+        description="Denúncia procedente: a troca de mensagens entre as partes está bloqueada.",
+    )
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -179,3 +186,12 @@ class DecisaoDenunciaEntrada(BaseModel):
         if not limpo:
             raise ValueError("O motivo da decisão não pode ficar em branco.")
         return limpo
+
+
+class UsuarioBanido(BaseModel):
+    """Conta banida de forma permanente por reincidência em denúncias procedentes."""
+
+    usuario_id: int
+    nome: str
+    email: str
+    penalidades: int

@@ -79,18 +79,21 @@ def cadastrar_contratante(
     db: Session = Depends(get_db),
 ) -> PerfilContratanteDetalhe:
     """Cadastra o perfil contratante, pessoa física ou jurídica (CNPJ opcional)."""
-    return cadastro.detalhar_contratante(cadastro.criar_perfil_contratante(db, usuario, entrada))
+    return cadastro.detalhar_contratante(
+        db, cadastro.criar_perfil_contratante(db, usuario, entrada)
+    )
 
 
 @router.get("/perfis/contratante/meu", response_model=PerfilContratanteDetalhe)
 def consultar_meu_perfil_contratante(
     usuario: Usuario = Depends(usuario_atual),
+    db: Session = Depends(get_db),
 ) -> PerfilContratanteDetalhe:
     if usuario.perfil_contratante is None:
         raise erro_http(
             status.HTTP_404_NOT_FOUND, "perfil_nao_encontrado", "Perfil contratante não cadastrado."
         )
-    return cadastro.detalhar_contratante(usuario.perfil_contratante)
+    return cadastro.detalhar_contratante(db, usuario.perfil_contratante)
 
 
 # ---------------------------------------------------------------- comprovações

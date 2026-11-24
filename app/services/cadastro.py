@@ -40,7 +40,7 @@ from app.models import (
     TipoPerfil,
     Usuario,
 )
-from app.services import arquivos, match
+from app.services import arquivos, bairros, comprovantes, match
 from app.tempo import agora
 
 VERSAO_CONSENTIMENTO = "1.0"
@@ -117,7 +117,8 @@ def detalhar_profissional(db: Session, perfil: PerfilProfissional) -> PerfilProf
     )
 
 
-def detalhar_contratante(perfil: PerfilContratante) -> PerfilContratanteDetalhe:
+def detalhar_contratante(db: Session, perfil: PerfilContratante) -> PerfilContratanteDetalhe:
+    destaque = comprovantes.destaque_do_contratante(db, perfil.usuario_id)
     return PerfilContratanteDetalhe(
         id=perfil.id,
         usuario_id=perfil.usuario_id,
@@ -129,6 +130,8 @@ def detalhar_contratante(perfil: PerfilContratante) -> PerfilContratanteDetalhe:
         selfie_url=perfil.selfie_url,
         verificacao=estado_verificacao(perfil),
         verificacao_motivo=perfil.verificacao_motivo,
+        adicionais_pagos=destaque.adicionais_pagos,
+        destaque=destaque.destaque,
     )
 
 
@@ -150,11 +153,14 @@ def criar_perfil_profissional(
             "Esta conta já tem perfil profissional.",
         )
     categorias = _categorias_por_slug(db, entrada.categorias)
+    latitude, longitude = bairros.resolver_coordenadas(
+        entrada.bairro.strip(), entrada.latitude, entrada.longitude
+    )
     endereco = Endereco(
         logradouro=entrada.logradouro,
         bairro=entrada.bairro.strip(),
-        latitude=entrada.latitude,
-        longitude=entrada.longitude,
+        latitude=latitude,
+        longitude=longitude,
     )
     db.add(endereco)
     db.flush()

@@ -20,6 +20,8 @@ class ContratanteResumo(BaseModel):
     nota_media: float
     total_avaliacoes: int
     pro: bool = False
+    adicionais_pagos: int = 0
+    destaque: bool = False
 
 
 class ConviteVaga(BaseModel):
@@ -65,8 +67,10 @@ class VagaCriar(BaseModel):
     data_inicio: datetime
     bairro: str = Field(min_length=2, max_length=80)
     logradouro: str | None = Field(default=None, max_length=160)
-    latitude: float = Field(ge=-90, le=90)
-    longitude: float = Field(ge=-180, le=180)
+    latitude: float | None = Field(
+        default=None, ge=-90, le=90, description="Opcional: deduzida do bairro quando ausente."
+    )
+    longitude: float | None = Field(default=None, ge=-180, le=180)
     checklist: list[RespostaChecklist] = Field(
         default_factory=list,
         description="Respostas do checklist de segurança; obrigatório nas categorias de risco "

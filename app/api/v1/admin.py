@@ -2,7 +2,11 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.v1.schemas.denuncias import DecisaoDenunciaEntrada, DenunciaFilaAdmin
+from app.api.v1.schemas.denuncias import (
+    DecisaoDenunciaEntrada,
+    DenunciaFilaAdmin,
+    UsuarioBanido,
+)
 from app.api.v1.schemas.disputas import DecisaoDisputaEntrada, DisputaAdminDetalhe
 from app.db import get_db
 from app.deps import exige_admin
@@ -85,3 +89,9 @@ def decidir_denuncia(
         decisao=entrada.decisao,
         motivo=entrada.motivo,
     )
+
+
+@router.get("/banimentos", response_model=list[UsuarioBanido])
+def listar_banimentos(db: Session = Depends(get_db)) -> list[UsuarioBanido]:
+    """Contas banidas de forma permanente após duas denúncias procedentes."""
+    return denuncias.listar_banidos(db)

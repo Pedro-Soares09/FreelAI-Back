@@ -2,14 +2,15 @@
 
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.v1.vagas import profissional_ativo
 from app.db import get_db
 from app.models import Usuario
-from app.services import configuracao
+from app.services import configuracao, mapa
+from app.services.mapa import MapaDeOfertas
 from app.tempo import agora, como_utc
 
 router = APIRouter(prefix="/profissional", tags=["profissional"])
@@ -79,3 +80,13 @@ def atualizar_raio(
     db.commit()
     db.refresh(perfil)
     return _situacao(usuario)
+
+
+@router.get("/mapa-ofertas", response_model=MapaDeOfertas)
+def mapa_de_ofertas(
+    raio_km: int | None = Query(default=None, ge=1),
+    usuario: Usuario = Depends(profissional_ativo),
+    db: Session = Depends(get_db),
+) -> MapaDeOfertas:
+    """Ofertas abertas perto do profissional, filtradas pelas categorias e experiências dele."""
+    return mapa.montar_mapa(db, usuario.perfil_profissional, raio_km)

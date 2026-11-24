@@ -254,7 +254,7 @@ def test_decisao_procedente_e_improcedente_com_motivo_conta_para_us58_e_reputaca
     assert repetida.status_code == 409
     assert repetida.json()["detail"]["codigo"] == "denuncia_ja_decidida"
 
-    # 2. Decide 2 denúncias como procedentes -> acumuladas = 2 (conta ainda ativa)
+    # 2. Decide 2 denúncias como procedentes -> acumuladas = 2
     for denuncia_id in (ids[1], ids[2]):
         dec = cliente.post(
             f"/api/v1/admin/denuncias/{denuncia_id}/decisao",
@@ -266,9 +266,11 @@ def test_decisao_procedente_e_improcedente_com_motivo_conta_para_us58_e_reputaca
 
     db.refresh(denunciado)
     assert denuncias.total_procedentes_do_usuario(db, denunciado.id) == 2
-    assert denunciado.estado == EstadoConta.ATIVA
+    # Duas penalidades atingem `denuncias_para_banimento` e banem a conta de vez.
+    assert denunciado.estado == EstadoConta.BANIDA
+    assert denunciado.suspensa_ate is None
 
-    # 3. Decide a 3ª denúncia procedente -> atinge `denuncias_para_suspensao` (3) e suspende (US58)
+    # 3. Uma nova decisão procedente continua válida e a conta segue banida
     dec3 = cliente.post(
         f"/api/v1/admin/denuncias/{ids[3]}/decisao",
         json={"decisao": "procedente", "motivo": "Terceira infração confirmada."},
@@ -278,5 +280,4 @@ def test_decisao_procedente_e_improcedente_com_motivo_conta_para_us58_e_reputaca
     assert dec3.json()["denuncias_procedentes_acumuladas"] == 3
 
     db.refresh(denunciado)
-    assert denunciado.estado == EstadoConta.SUSPENSA
-    assert denunciado.suspensa_ate is not None
+    assert denunciado.estado == EstadoConta.BANIDA

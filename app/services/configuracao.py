@@ -77,8 +77,16 @@ PARAMETROS: dict[str, Parametro] = {
     "advertencias_para_suspensao": Parametro(3, 3, "Advertências no período que suspendem a conta"),
     "periodo_advertencias_dias": Parametro(30, 30, "Janela de contagem das advertências"),
     "suspensao_advertencias_dias": Parametro(7, 7, "Duração da suspensão por advertências"),
-    "denuncias_para_suspensao": Parametro(3, 3, "Denúncias procedentes que suspendem a conta"),
-    "suspensao_denuncias_dias": Parametro(30, 30, "Duração da suspensão por denúncias"),
+    "denuncias_para_banimento": Parametro(
+        2, 2, "Denúncias procedentes que banem a conta de forma permanente"
+    ),
+    "taxa_adicional_pct": Parametro(
+        7, 7, "Taxa da plataforma sobre horas extras e bônus pagos", inteiro=False
+    ),
+    "adicionais_para_destaque": Parametro(
+        1, 1, "Adicionais pagos (horas extras ou bônus) que dão destaque ao contratante"
+    ),
+    "raio_mapa_km": Parametro(15, 15, "Raio máximo do mapa de ofertas próximas"),
     "anexo_max_mb": Parametro(10, 10, "Tamanho máximo de um arquivo enviado"),
 }
 

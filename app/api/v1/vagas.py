@@ -40,7 +40,7 @@ from app.models import (
     Usuario,
     Vaga,
 )
-from app.services import configuracao, match
+from app.services import bairros, comprovantes, configuracao, match
 from app.services.geo import arredondar_km, distancia_km
 from app.tempo import agora, como_utc
 
@@ -113,6 +113,7 @@ def reputacao_do_usuario(db: Session, usuario_id: int) -> tuple[float, int]:
 def _resumo_contratante(db: Session, contratante: PerfilContratante) -> ContratanteResumo:
     usuario = db.get(Usuario, contratante.usuario_id)
     nota, total = reputacao_do_usuario(db, contratante.usuario_id)
+    destaque = comprovantes.destaque_do_contratante(db, contratante.usuario_id)
     return ContratanteResumo(
         id=str(contratante.id),
         nome=contratante.razao_social or usuario.nome,
@@ -120,6 +121,8 @@ def _resumo_contratante(db: Session, contratante: PerfilContratante) -> Contrata
         verificado=contratante.verificado,
         nota_media=nota,
         total_avaliacoes=total,
+        adicionais_pagos=destaque.adicionais_pagos,
+        destaque=destaque.destaque,
     )
 
 
@@ -259,11 +262,14 @@ def criar_vaga(
             "O início precisa respeitar a antecedência mínima.",
             antecedencia_minima_min=antecedencia,
         )
+    latitude, longitude = bairros.resolver_coordenadas(
+        entrada.bairro, entrada.latitude, entrada.longitude
+    )
     endereco = Endereco(
         logradouro=entrada.logradouro,
         bairro=entrada.bairro,
-        latitude=entrada.latitude,
-        longitude=entrada.longitude,
+        latitude=latitude,
+        longitude=longitude,
     )
     db.add(endereco)
     db.flush()

@@ -36,6 +36,7 @@ from app.erros import erro_http
 from app.models import (
     Convite,
     Denuncia,
+    EstadoDenuncia,
     EstadoVaga,
     Notificacao,
     Pagamento,
@@ -364,22 +365,40 @@ def notificar_denuncia_decidida(
     db: Session,
     denuncia: Denuncia,
     *,
+    penalidades: int = 0,
+    limite: int = 0,
+    banido: bool = False,
     commit: bool = True,
 ) -> list[Notificacao]:
-    """Evento 9 (`denuncia_decidida`): informa o resultado da análise administrativa da denúncia."""
-    destinatarios: list[int] = [denuncia.denunciado_id]
-    if denuncia.denunciante_id is not None and denuncia.denunciante_id not in destinatarios:
-        destinatarios.append(denuncia.denunciante_id)
+    """Evento 9 (`denuncia_decidida`): informa o resultado da análise da denúncia às partes."""
+    procedente = denuncia.estado == EstadoDenuncia.PROCEDENTE
+    if procedente:
+        para_denunciado = (
+            "Denúncia procedente: a conta foi banida de forma permanente."
+            if banido
+            else (
+                f"Denúncia procedente: o chat com a outra parte foi bloqueado. "
+                f"Penalidade {penalidades} de {limite}; ao atingir {limite} a conta é banida."
+            )
+        )
+        para_denunciante = "Denúncia procedente: o chat com a outra parte foi bloqueado."
+    else:
+        para_denunciado = "Decisão registrada: denúncia improcedente."
+        para_denunciante = "Decisão registrada: denúncia improcedente."
+
+    destinatarios: list[tuple[int, str]] = [(denuncia.denunciado_id, para_denunciado)]
+    if denuncia.denunciante_id is not None and denuncia.denunciante_id != denuncia.denunciado_id:
+        destinatarios.append((denuncia.denunciante_id, para_denunciante))
 
     criadas: list[Notificacao] = []
-    for uid in destinatarios:
+    for uid, texto in destinatarios:
         criadas.append(
             criar_notificacao(
                 db,
                 usuario_id=uid,
                 tipo=EventoNotificacao.DENUNCIA_DECIDIDA,
                 titulo="Denúncia analisada pela administração",
-                mensagem=f"Decisão registrada: {denuncia.estado.value}.",
+                mensagem=texto,
                 vaga_id=denuncia.vaga_id,
                 commit=False,
             )
