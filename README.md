@@ -391,6 +391,17 @@ Os profissionais possuem diferentes situações de cadastro e verificação, inc
 
 Também são utilizadas coordenadas geográficas fictícias para representar profissionais dentro e fora do raio de 5 km das vagas.
 
+### Estado inicial da demonstração em um comando
+
+```bash
+python scripts/preparar_demo.py            # recria o banco local (demo.db) e semeia
+python scripts/preparar_demo.py --servir   # idem e sobe a API com o perfil demo na porta 8000
+```
+
+Usa o `scripts/semear_demo.py` (contas e vagas da jornada integrada). O banco é apagado e
+recriado a cada execução, o que também serve para repetir a demonstração depois que as janelas
+de aceite e de pagamento (minutos no perfil `demo`) vencerem.
+
 ### Credenciais de demonstração
 
 Todas as contas criadas pelo seed utilizam a mesma senha:
