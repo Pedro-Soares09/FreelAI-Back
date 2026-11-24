@@ -151,6 +151,34 @@ Rotas administrativas (exigem conta com papel `admin`):
 - `POST /api/v1/admin/prazos/varrer`: força a execução imediata das varreduras de prazo
   registradas com `@varredura("nome")` em `app/services/varreduras.py`.
 - `GET /api/v1/admin/configuracoes`: valores efetivos do perfil atual.
+- `GET /api/v1/admin/disputas` e `GET /api/v1/admin/disputas/{disputa_id}`: aba de disputas com o
+  histórico do chat e os anexos de cada vaga.
+- `POST /api/v1/admin/disputas/{disputa_id}/decisao`: decide a disputa (`reembolso_total`,
+  `reembolso_parcial` ou `pagamento_integral`) e gera os lançamentos no livro do pagamento.
+
+## Disputas (contestação em 24h e decisão do admin)
+
+O contratante dono da vaga pode contestar o serviço dentro das **24 horas** de confirmação
+(`confirmacao_conclusao_min`) após o fim previsto do serviço, enquanto o pagamento estiver `retido`
+(`app/services/disputas.py`). A abertura trava a vaga em `em_disputa`, impedindo que a varredura de
+72h (`liberacao_parcial`) libere o valor automaticamente.
+
+O administrador decide em até 48h úteis usando exclusivamente as funções do livro de lançamentos
+(`app/services/pagamentos.py`):
+
+- `reembolso_total` → `estornar_integral`: devolve 100% ao contratante, sem taxa, e muda a vaga para
+  `reembolsada`.
+- `reembolso_parcial` → `liberar_parcial(100 - percentual_reembolso)`: libera a parcela ao
+  profissional (descontada a taxa da plataforma) e estorna o restante ao contratante (`liberada_parcial`).
+- `pagamento_integral` → `liberar_integral`: libera 100% ao profissional (descontada a taxa) e muda
+  a vaga para `liberada`.
+
+Rotas (tag `disputas` e `admin`):
+
+- `POST /api/v1/vagas/{vaga_id}/disputa`: abre a contestação e trava a vaga em `em_disputa`.
+- `GET /api/v1/vagas/{vaga_id}/disputa`: estado da disputa e lançamentos (contratante ou profissional).
+- `GET /api/v1/admin/disputas`: lista as disputas com `chat`, `anexos`, `pagamento` e tempo em espera.
+- `POST /api/v1/admin/disputas/{disputa_id}/decisao`: decide a disputa com motivo obrigatório.
 - `GET /api/v1/admin/denuncias`: fila de denúncias (manuais e automáticas) com tempo em espera e
   meta de 48h úteis.
 - `POST /api/v1/admin/denuncias/{denuncia_id}/decisao`: decide a denúncia como `procedente` ou

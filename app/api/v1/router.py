@@ -6,6 +6,7 @@ from app.api.v1 import (
     avaliacoes,
     conversas,
     denuncias,
+    disputas,
     pagamentos,
     saude,
     stubs,
@@ -21,6 +22,7 @@ api_router.include_router(admin.router)
 api_router.include_router(avaliacoes.router)
 api_router.include_router(conversas.router)
 api_router.include_router(denuncias.router)
+api_router.include_router(disputas.router)
 api_router.include_router(pagamentos.router)
 api_router.include_router(vagas.router)
 api_router.include_router(stubs.router)
