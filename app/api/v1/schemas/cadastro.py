@@ -186,6 +186,14 @@ class PerfilContratanteDetalhe(BaseModel):
     verificacao_motivo: str | None
     adicionais_pagos: int = 0
     destaque: bool = False
+    bio: str | None = None
+    bairro: str | None = None
+    horario_contato: str | None = None
+    categorias_interesse: list[str] = Field(default_factory=list)
+    exigir_verificado: bool = False
+    aceita_notificacoes: bool = True
+    cor_destaque: str = "lilas"
+    avatar_url: str | None = None
 
 
 # ---------------------------------------------------------------- verificação

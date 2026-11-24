@@ -83,3 +83,19 @@ python scripts/preparar_demo.py --servir
 ```
 
 O comando apaga o banco `demo.db`, aplica as migrações e semeia categorias com checklist, contas e vagas. Rode de novo sempre que quiser repetir a demonstração do zero.
+
+## Moderação pela administração (opcional, +2 minutos)
+
+A semente cria dados prontos para a conta `admin@example.com`, em `/admin`:
+
+- **Denúncias, Abertas (3):** cobrança fora da plataforma contra Tiago Alves (acima de 48 h úteis), tentativas de enviar telefone (automática) e mensagens ofensivas contra Roberto Cunha. Validar uma delas bloqueia só o chat entre as partes; a segunda penalidade bane a conta.
+- **Denúncias, Decididas (5):** quatro procedentes (com chat bloqueado) e uma improcedente.
+- **Disputas, Abertas (3):** valores de R$ 260,00 a R$ 480,00, com conversa consultável e as três decisões (pagar o profissional, reembolso parcial, reembolso total).
+- **Disputas, Decididas (1):** reembolso parcial de 40%.
+- **Banimentos (1):** Rafael Lima, com duas penalidades. O login dele mostra "Conta banida".
+
+Contas extras (senha `senha-segura-123`): `rafael.lima`, `tiago.alves`, `patricia.nunes` (profissionais) e `juliana.prado`, `marcos.teles`, `helena.duarte`, `roberto.cunha` (contratantes), todas com `@example.com`. A Helena Duarte tem o selo de contratante destaque e avaliações, bom exemplo para mostrar o perfil público.
+
+## Perfil do contratante
+
+A Maria edita o perfil em `/perfil` (foto, apresentação, bairro, horário, categorias de interesse, preferências e cor). Os profissionais veem o resultado em `/contratante/<id>`, aberto pelo nome do contratante no card da vaga ou por "Ver perfil" no chat.

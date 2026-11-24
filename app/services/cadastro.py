@@ -132,6 +132,14 @@ def detalhar_contratante(db: Session, perfil: PerfilContratante) -> PerfilContra
         verificacao_motivo=perfil.verificacao_motivo,
         adicionais_pagos=destaque.adicionais_pagos,
         destaque=destaque.destaque,
+        bio=perfil.bio,
+        bairro=perfil.bairro,
+        horario_contato=perfil.horario_contato,
+        categorias_interesse=list(perfil.categorias_interesse or []),
+        exigir_verificado=perfil.exigir_verificado,
+        aceita_notificacoes=perfil.aceita_notificacoes,
+        cor_destaque=perfil.cor_destaque,
+        avatar_url=perfil.avatar_url,
     )
 
 

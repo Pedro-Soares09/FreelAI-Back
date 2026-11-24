@@ -275,10 +275,15 @@ def montar_item_fila_admin(
             procedentes_cache[denuncia.denunciado_id] = procedentes
 
     denunciado = db.get(Usuario, denuncia.denunciado_id)
+    denunciante = (
+        db.get(Usuario, denuncia.denunciante_id) if denuncia.denunciante_id is not None else None
+    )
     return DenunciaFilaAdmin(
         id=denuncia.id,
         denunciante_id=denuncia.denunciante_id,
+        denunciante_nome=denunciante.nome if denunciante is not None else None,
         denunciado_id=denuncia.denunciado_id,
+        denunciado_nome=denunciado.nome if denunciado is not None else None,
         vaga_id=denuncia.vaga_id,
         conversa_id=denuncia.conversa_id,
         origem=denuncia.origem,
