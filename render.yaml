@@ -1,0 +1,32 @@
+# Blueprint do Render: API em contêiner e PostgreSQL gerenciado.
+# Depois de criar o serviço, defina CORS_ORIGINS com o endereço público do front
+# (exemplo: ["https://freelai.vercel.app"]) e redeploy.
+services:
+  - type: web
+    name: freelai-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: AMBIENTE
+        value: desenvolvimento # permite semear dados fictícios; o segredo continua forte
+      - key: PERFIL
+        value: demo # prazos curtos para apresentação
+      - key: SEMEAR_DEMO
+        value: "true"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: freelai-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        sync: false # informar no painel, com o endereço do front
+      - key: GEOCODIFICACAO_OSM
+        value: "false"
+
+databases:
+  - name: freelai-db
+    plan: free
+    databaseName: freelai
+    user: freelai
