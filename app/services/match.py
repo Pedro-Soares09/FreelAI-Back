@@ -101,6 +101,43 @@ def _profissionais_ocupados(db: Session, vaga: Vaga, ids: list[int]) -> set[int]
     return ocupados
 
 
+def pendencias_da_categoria(
+    db: Session, perfil: PerfilProfissional, categoria: Categoria
+) -> list[str]:
+    """O que falta aprovar para o profissional atuar na categoria, com as mesmas regras do match.
+
+    Risco médio ou alto exige experiência aprovada; categorias que exigem qualificação ou EPI
+    pedem a comprovação aprovada da própria categoria.
+    """
+    faltas: list[str] = []
+    if (
+        categoria.risco in RISCOS_COM_EXPERIENCIA
+        and perfil.experiencia_aprovada != StatusAprovacao.APROVADO
+    ):
+        faltas.append("experiencia")
+    for exigida, modelo, nome in (
+        (categoria.exige_qualificacao, Qualificacao, "qualificacao"),
+        (categoria.exige_epi, EpiProfissional, "epi"),
+    ):
+        if not exigida:
+            continue
+        aprovada = db.scalar(
+            select(modelo.id).where(
+                modelo.profissional_id == perfil.id,
+                modelo.categoria_id == categoria.id,
+                modelo.status == StatusAprovacao.APROVADO,
+            )
+        )
+        if aprovada is None:
+            faltas.append(nome)
+    return faltas
+
+
+def pode_atuar(db: Session, perfil: PerfilProfissional, categoria: Categoria) -> bool:
+    """Regra única de aptidão por categoria (SEG01, SEG02, SEG04), do perfil e do match."""
+    return not pendencias_da_categoria(db, perfil, categoria)
+
+
 def _candidatos_elegiveis(db: Session, vaga: Vaga) -> list[tuple[PerfilProfissional, float]]:
     """Elegíveis com a distância até a vaga, em ordem de id.
 

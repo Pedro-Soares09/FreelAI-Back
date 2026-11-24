@@ -213,6 +213,30 @@ def listar_categorias(
     ]
 
 
+def _exigir_checklist_de_seguranca(categoria: Categoria, respostas) -> None:
+    """Categorias de risco médio ou alto exigem o checklist; item crítico negativo bloqueia."""
+    if categoria.risco == RiscoCategoria.BAIXO:
+        return
+    criticos = [item for item in categoria.checklist if item.critico]
+    por_item = {r.item_id: r.atendido for r in respostas}
+    sem_resposta = [item.id for item in criticos if item.id not in por_item]
+    if sem_resposta:
+        raise erro_http(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "checklist_incompleto",
+            "Responda todos os itens críticos do checklist de segurança.",
+            itens_pendentes=sem_resposta,
+        )
+    negativos = [item.id for item in criticos if not por_item[item.id]]
+    if negativos:
+        raise erro_http(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "checklist_critico_negativo",
+            "Há item crítico de segurança não atendido; a vaga não pode ser publicada.",
+            itens_nao_atendidos=negativos,
+        )
+
+
 @router.post("/vagas", response_model=VagaDetalhe, status_code=status.HTTP_201_CREATED)
 def criar_vaga(
     entrada: VagaCriar,
@@ -225,6 +249,7 @@ def criar_vaga(
         raise erro_http(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "categoria_invalida", "Categoria inexistente."
         )
+    _exigir_checklist_de_seguranca(categoria, entrada.checklist)
     inicio = como_utc(entrada.data_inicio)
     antecedencia = configuracao.get("inicio_minimo_vaga_min", db=db)
     if inicio < agora() + timedelta(minutes=antecedencia):

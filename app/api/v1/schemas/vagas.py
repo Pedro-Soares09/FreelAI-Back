@@ -51,6 +51,11 @@ class VagaDetalhe(BaseModel):
     meu_convite: ConviteVaga | None = None
 
 
+class RespostaChecklist(BaseModel):
+    item_id: int
+    atendido: bool
+
+
 class VagaCriar(BaseModel):
     titulo: str = Field(min_length=3, max_length=120)
     descricao: str = Field(min_length=5)
@@ -62,6 +67,11 @@ class VagaCriar(BaseModel):
     logradouro: str | None = Field(default=None, max_length=160)
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
+    checklist: list[RespostaChecklist] = Field(
+        default_factory=list,
+        description="Respostas do checklist de segurança; obrigatório nas categorias de risco "
+        "médio ou alto (itens em GET /categorias/{slug}/seguranca).",
+    )
 
 
 class CategoriaResumo(BaseModel):
