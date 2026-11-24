@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     acordo,
     admin,
+    arquivos,
     auth,
     avaliacoes,
     conversas,
@@ -21,6 +22,7 @@ api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(saude.router)
 api_router.include_router(auth.router)
 api_router.include_router(admin.router)
+api_router.include_router(arquivos.router)
 api_router.include_router(avaliacoes.router)
 api_router.include_router(conversas.router)
 api_router.include_router(denuncias.router)

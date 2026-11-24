@@ -51,6 +51,14 @@ def cliente(engine):
 
 
 @pytest.fixture(autouse=True)
+def pasta_uploads_isolada(tmp_path, monkeypatch):
+    """Direciona os uploads de cada teste para um diretório temporário descartado ao fim."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "uploads_dir", str(tmp_path / "uploads"))
+
+
+@pytest.fixture(autouse=True)
 def relogio_real():
     """Garante que nenhum teste vaze um relógio fixado ou plano Pro em memória."""
     from app.services.notificacoes import limpar_planos_pro

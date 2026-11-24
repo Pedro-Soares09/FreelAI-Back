@@ -63,6 +63,17 @@ def usuario_atual(
     return usuario
 
 
+def usuario_opcional(
+    credenciais: HTTPAuthorizationCredentials | None = Depends(esquema_bearer),
+    db: Session = Depends(get_db),
+) -> Usuario | None:
+    """Devolve o usuário autenticado quando há Bearer token, ou `None` quando não há."""
+    if credenciais is None:
+        return None
+    return usuario_atual(credenciais, db)
+
+
+
 # Nome mantido para as rotas anteriores à versão 1.
 get_current_user = usuario_atual
 

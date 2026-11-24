@@ -27,6 +27,7 @@ from app.models.enums import (  # noqa: F401
     PapelUsuario,
     RiscoCategoria,
     StatusAprovacao,
+    TipoArquivo,
     TipoLancamento,
     TipoPerfil,
     TipoPessoa,
@@ -34,6 +35,7 @@ from app.models.enums import (  # noqa: F401
     TipoVaga,
 )
 from app.models.nucleo import (  # noqa: F401
+    Arquivo,
     Categoria,
     ChecklistItem,
     Configuracao,

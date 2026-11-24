@@ -65,6 +65,21 @@ Rotas provisórias (`app/api/v1/stubs.py`) devolvem dados de exemplo, com o cabe
 
 O campo `verificado` vem de `GET /api/v1/auth/me`.
 
+## Arquivos (upload e leitura)
+
+Módulo único para fotos de perfil, selfies, documentos de identidade, comprovantes de qualificação,
+fotos de EPI e anexos de chat. Tipos permitidos: `jpg`, `png` e `pdf`, com limite padrão de 10 MB
+(`anexo_max_mb` em `app/services/configuracao.py`). Os arquivos são gravados em `uploads/` com nome
+gerado (nunca o original), por trás da interface `ArmazenamentoArquivos` em `app/services/arquivos.py`
+(local nesta fase, preparada para troca por S3).
+
+Rotas (tag `arquivos`):
+
+- `POST /api/v1/arquivos`: recebe `tipo` (`foto`, `selfie`, `documento`, `qualificacao`, `epi` ou
+  `anexo`) e `arquivo` via `multipart/form-data`, valida formato e tamanho e devolve a URL.
+- `GET /api/v1/arquivos/{tipo}/{nome}`: serve o arquivo armazenado. Arquivos de `documento` e
+  `selfie` exigem autenticação e só são acessíveis pelo dono ou por conta `admin`.
+
 ## Chat e conversas
 
 A conversa nasce somente no aceite do convite (`abrir_conversa_no_aceite`, 1 por vaga) e mantém o
@@ -338,6 +353,61 @@ ser usado com `docker run`.
 - O token de renovação não serve como token de acesso. Os tokens de renovação não são revogados
   individualmente: uma troca de senha não invalida os já emitidos.
 - O SQLite é aberto com chaves estrangeiras ativas, para se comportar como o PostgreSQL.
-- No WebSocket do chat, passar o JWT via `?token=<jwt>` pode registrar o token em logs de acesso e
-  proxies; prefira `?auth=mensagem` (enviando o token na primeira mensagem JSON) ou faça redação do
-  parâmetro `token` nos logs do proxy reverso.
+
+## Dados de demonstração (US10)
+
+O FreelAI disponibiliza um comando para popular o banco de dados com informações fictícias, utilizadas durante o desenvolvimento, testes e apresentações do projeto.
+
+### Como executar
+
+Antes de executar o seed, certifique-se de que as migrações foram aplicadas:
+
+```bash
+alembic upgrade head
+```
+
+Em seguida, execute:
+
+```bash
+python -m app.seed
+```
+
+O comando pode ser executado novamente sem duplicar os registros existentes (operação idempotente).
+
+### Dados criados
+
+O seed disponibiliza:
+
+- 5 categorias de serviços: montagem de móveis, limpeza, elétrica, pintura e jardinagem.
+- Categorias classificadas por nível de risco.
+- Equipamentos de proteção individual (EPI) por categoria.
+- Checklists de segurança por categoria.
+- 1 conta administrativa.
+- 20 profissionais fictícios distribuídos em bairros do Recife.
+- 5 contratantes fictícios.
+- 6 vagas em diferentes estados.
+
+Os profissionais possuem diferentes situações de cadastro e verificação, incluindo profissionais novos e assinantes Pro em cada categoria principal.
+
+Também são utilizadas coordenadas geográficas fictícias para representar profissionais dentro e fora do raio de 5 km das vagas.
+
+### Credenciais de demonstração
+
+Todas as contas criadas pelo seed utilizam a mesma senha:
+
+**Senha:** `FreelAI@2026!`
+
+**Administrador:**
+- `admin@freelai.local`
+
+**Profissionais:**
+- `profissional01@freelai.local` até `profissional20@freelai.local`
+
+**Contratantes:**
+- `contratante01@freelai.local` até `contratante05@freelai.local`
+
+### Observações
+
+- Todos os dados são fictícios.
+- O seed é destinado exclusivamente aos ambientes de desenvolvimento, testes e demonstração.
+- Não utilizar essas credenciais em ambiente de produção.
