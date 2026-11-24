@@ -61,10 +61,54 @@ Rotas provisórias (`app/api/v1/stubs.py`) devolvem dados de exemplo, com o cabe
 
 - `GET /api/v1/vagas/{vaga_id}`
 - `GET /api/v1/vagas/{vaga_id}/acordo`
-- `GET /api/v1/conversas/{conversa_id}`
 - `GET /api/v1/mapa/pontos`
 
 O campo `verificado` vem de `GET /api/v1/auth/me`.
+
+## Chat e conversas
+
+A conversa nasce somente no aceite do convite (`abrir_conversa_no_aceite`, 1 por vaga) e mantém o
+vínculo entre `vaga_id` e `conversa_id`. Fecha para escrita automaticamente quando a vaga cai
+(`expirada`, `cancelada`, `falta`, `reembolsada` ou devolvida à publicação) ou é encerrada
+financeiramente (`liberada`, `liberada_parcial`).
+
+Como o navegador não envia cabeçalhos no handshake do WebSocket, há duas formas de autenticar:
+
+1. **Query string (`?token=<access_token>`, padrão `auth=query`)**: validado antes do `accept()`,
+   fechando imediatamente com `4401` em caso de token ausente ou inválido. **Atenção:** tokens na
+   query string podem ser registrados em logs de acesso/proxy; configure redação do parâmetro
+   `token` no proxy ou prefira o modo abaixo.
+2. **Primeira mensagem (`?auth=mensagem`, recomendada para evitar JWT em logs)**: aceita o socket,
+   aguarda até 5s pela primeira mensagem JSON `{"tipo": "auth", "token": "<jwt>"}`, responde
+   `{"tipo": "autenticado", "conversa_id": ..., "usuario_id": ...}` e fecha com `4401` se falhar.
+
+Clientes fora do navegador também podem enviar o cabeçalho `Authorization: Bearer <jwt>`.
+Em qualquer modo, usuário fora da vaga fecha com `4403` e conversa inexistente fecha com `4404`.
+O endpoint WebSocket abre uma sessão curta de banco apenas durante a autenticação e no
+processamento de cada mensagem, sem manter conexões do pool presas enquanto o socket está ocioso.
+
+Rotas (tag `conversas`):
+
+- `GET /api/v1/conversas`: lista as conversas do usuário com `outra_parte`, `ultima_mensagem` e
+  contagem de `nao_lidas`.
+- `GET /api/v1/conversas/{conversa_id}`: resumo da conversa com `vaga_id` e estado `aberta`.
+- `GET /api/v1/vagas/{vaga_id}/conversa`: ponto de integração que resolve a conversa a partir do
+  `vaga_id`.
+- `GET /api/v1/conversas/{conversa_id}/mensagens`: histórico de mensagens em ordem cronológica.
+- `POST /api/v1/conversas/{conversa_id}/mensagens`: persiste mensagem (`texto` e/ou `anexo_url`) e
+  transmite em tempo real aos conectados.
+- `POST /api/v1/conversas/{conversa_id}/anexos`: envia anexo JPG/PNG/PDF até `anexo_max_mb` MB
+  (`multipart/form-data`, campo `arquivo` e `texto` opcional) e transmite aos conectados.
+- `GET /api/v1/conversas/{conversa_id}/anexos/{nome}`: entrega o anexo restrito aos participantes.
+- `POST /api/v1/conversas/{conversa_id}/visto`: marca como lidas as mensagens recebidas da outra
+  parte.
+- `WS /api/v1/conversas/{conversa_id}/ws?token=<jwt>` (ou `?auth=mensagem`): canal em tempo real
+  com broadcast em memória.
+
+Mensagens no REST, WebSocket e legendas de anexos passam pelo bloqueio de telefone brasileiro e
+referências ao WhatsApp (`422 contato_externo_bloqueado` no REST ou evento `erro` ao remetente no
+WebSocket). Cada tentativa bloqueada é persistida na tabela `tentativas_contato` por
+`(conversa_id, usuario_id)` e abre uma denúncia automática a partir da 3ª tentativa.
 
 ## Pagamento
 
@@ -107,6 +151,53 @@ Rotas administrativas (exigem conta com papel `admin`):
 - `POST /api/v1/admin/prazos/varrer`: força a execução imediata das varreduras de prazo
   registradas com `@varredura("nome")` em `app/services/varreduras.py`.
 - `GET /api/v1/admin/configuracoes`: valores efetivos do perfil atual.
+- `GET /api/v1/admin/disputas` e `GET /api/v1/admin/disputas/{disputa_id}`: aba de disputas com o
+  histórico do chat e os anexos de cada vaga.
+- `POST /api/v1/admin/disputas/{disputa_id}/decisao`: decide a disputa (`reembolso_total`,
+  `reembolso_parcial` ou `pagamento_integral`) e gera os lançamentos no livro do pagamento.
+
+## Disputas (contestação em 24h e decisão do admin)
+
+O contratante dono da vaga pode contestar o serviço dentro das **24 horas** de confirmação
+(`confirmacao_conclusao_min`) após o fim previsto do serviço, enquanto o pagamento estiver `retido`
+(`app/services/disputas.py`). A abertura trava a vaga em `em_disputa`, impedindo que a varredura de
+72h (`liberacao_parcial`) libere o valor automaticamente.
+
+O administrador decide em até 48h úteis usando exclusivamente as funções do livro de lançamentos
+(`app/services/pagamentos.py`):
+
+- `reembolso_total` → `estornar_integral`: devolve 100% ao contratante, sem taxa, e muda a vaga para
+  `reembolsada`.
+- `reembolso_parcial` → `liberar_parcial(100 - percentual_reembolso)`: libera a parcela ao
+  profissional (descontada a taxa da plataforma) e estorna o restante ao contratante (`liberada_parcial`).
+- `pagamento_integral` → `liberar_integral`: libera 100% ao profissional (descontada a taxa) e muda
+  a vaga para `liberada`.
+
+Rotas (tag `disputas` e `admin`):
+
+- `POST /api/v1/vagas/{vaga_id}/disputa`: abre a contestação e trava a vaga em `em_disputa`.
+- `GET /api/v1/vagas/{vaga_id}/disputa`: estado da disputa e lançamentos (contratante ou profissional).
+- `GET /api/v1/admin/disputas`: lista as disputas com `chat`, `anexos`, `pagamento` e tempo em espera.
+- `POST /api/v1/admin/disputas/{disputa_id}/decisao`: decide a disputa com motivo obrigatório.
+- `GET /api/v1/admin/denuncias`: fila de denúncias (manuais e automáticas) com tempo em espera e
+  meta de 48h úteis.
+- `POST /api/v1/admin/denuncias/{denuncia_id}/decisao`: decide a denúncia como `procedente` ou
+  `improcedente` com motivo.
+
+## Denúncias e fila administrativa (SEG05)
+
+Qualquer usuário autenticado pode registrar uma denúncia a partir de um perfil (`denunciado_id`),
+de uma vaga (`vaga_id`) ou de uma conversa de chat (`conversa_id`), informando `motivo` e
+`descricao`. Denúncias automáticas do chat (`origem = automatica`) entram na mesma fila.
+
+- `POST /api/v1/denuncias`: abre uma denúncia na fila administrativa.
+- `GET /api/v1/denuncias` e `GET /api/v1/denuncias/{denuncia_id}`: consulta sem jamais expor
+  `denunciante_id` ao denunciado.
+- `GET /api/v1/admin/denuncias`: lista a fila com `tempo_espera_minutos`,
+  `tempo_espera_horas_uteis`, `meta_horas_uteis` (48h úteis) e `acima_da_meta`.
+- `POST /api/v1/admin/denuncias/{denuncia_id}/decisao`: grava `procedente` ou `improcedente` com
+  `decisao_motivo` e `decidido_em`. Denúncias procedentes contam para a reputação e suspendem a
+  conta ao atingir `denuncias_para_suspensao`.
 
 ## Match
 
@@ -145,6 +236,47 @@ Rotas (tag `notificacoes`):
 - `GET /api/v1/notificacoes/nao-lidas`: contagem rápida de notificações visíveis não lidas.
 - `POST /api/v1/notificacoes/{notificacao_id}/lida`: marca uma notificação visível como lida.
 - `POST /api/v1/notificacoes/ler-todas`: marca todas as notificações visíveis como lidas.
+## Avaliação mútua, reputação 70/20/10 e selo Novo
+
+Após a conclusão do serviço (`concluida`, `liberada` ou `liberada_parcial`), contratante e
+profissional têm **48 horas** (`avaliacao_prazo_min`) para avaliar a outra parte com nota de 1 a 5
+e comentário (`app/services/avaliacoes.py`). A avaliação enviada por um lado permanece oculta
+(`visivel_em = null`) até que o outro lado também avalie ou o prazo de 48h encerre (varredura
+`revelacao_avaliacoes`).
+
+O selo **Novo** permanece ativo até o **5º serviço concluído** (`servicos_concluidos <= 5`) e
+desaparece ao concluir o **6º serviço**.
+
+Rotas (tag `avaliacoes`):
+
+- `POST /api/v1/vagas/{vaga_id}/avaliacoes`: registra a avaliação (1 a 5 e comentário opcional).
+- `GET /api/v1/vagas/{vaga_id}/avaliacoes`: estado das avaliações da vaga (oculta a nota da outra
+  parte até ambos avaliarem ou o prazo acabar).
+- `GET /api/v1/usuarios/{usuario_id}/avaliacoes`: avaliações já reveladas recebidas pelo usuário.
+- `GET /api/v1/usuarios/{usuario_id}/reputacao`: reputação 70/20/10 detalhada e selo Novo.
+
+### Fórmula da reputação (70 / 20 / 10)
+
+```text
+Reputação = 0,70 × Média
+          + 0,20 × [ 5 × (1 - taxa_cancelamento_tardio_nos_últimos_20) ]
+          + 0,10 × max(0, 5 - 2 × denúncias_procedentes)
+```
+
+- **Média (70%)**: média das avaliações visíveis (1 a 5); quem ainda não possui avaliação visível
+  começa com média neutra **4,0**.
+- **Cancelamentos (20%)**: `5 × (1 - taxa)`, onde `taxa` é a proporção de cancelamentos tardios nos
+  últimos 20 compromissos.
+- **Denúncias (10%)**: começa em `5,0` e perde `2,0` pontos por denúncia procedente (mínimo `0,0`).
+
+Exemplos verificados pelos testes automatizados (`tests/test_avaliacoes.py`):
+
+| Cenário | Média (70%) | Cancelamentos tardios nos últimos 20 (20%) | Denúncias procedentes (10%) | Cálculo | Reputação final |
+| :--- | :---: | :---: | :---: | :--- | :---: |
+| **1. Conta nova (neutra)** | Sem avaliações → `4,0` | `0 / 20` (`taxa = 0%`) → `5,0` | `0` → `5,0` | `0,70×4,0 + 0,20×5,0 + 0,10×5,0` | **4,30** |
+| **2. Profissional exemplar** | Média `5,0` | `0 / 20` (`taxa = 0%`) → `5,0` | `0` → `5,0` | `0,70×5,0 + 0,20×5,0 + 0,10×5,0` | **5,00** |
+| **3. Com 1 cancelamento tardio e 1 denúncia** | Média `4,5` | `1 / 20` (`taxa = 5%`) → `4,75` | `1` → `3,0` | `0,70×4,5 + 0,20×4,75 + 0,10×3,0` | **4,40** |
+| **4. Reincidente (5 cancelamentos e 3 denúncias)** | Média `3,0` | `5 / 20` (`taxa = 25%`) → `3,75` | `3` → `max(0, 5-6) = 0,0` | `0,70×3,0 + 0,20×3,75 + 0,10×0,0` | **2,85** |
 
 ## Estrutura
 
@@ -206,3 +338,6 @@ ser usado com `docker run`.
 - O token de renovação não serve como token de acesso. Os tokens de renovação não são revogados
   individualmente: uma troca de senha não invalida os já emitidos.
 - O SQLite é aberto com chaves estrangeiras ativas, para se comportar como o PostgreSQL.
+- No WebSocket do chat, passar o JWT via `?token=<jwt>` pode registrar o token em logs de acesso e
+  proxies; prefira `?auth=mensagem` (enviando o token na primeira mensagem JSON) ou faça redação do
+  parâmetro `token` nos logs do proxy reverso.
