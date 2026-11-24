@@ -9,7 +9,7 @@ from app.services import pagamentos
 from app.tempo import fixar_relogio
 from tests.fabricas import cabecalho, criar_cenario_vaga, criar_usuario
 
-BASE = datetime.now(UTC)
+BASE = datetime.now(UTC).replace(microsecond=0)
 
 
 def _url_pagamento(vaga_id: int) -> str:

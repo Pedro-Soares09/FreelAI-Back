@@ -12,6 +12,7 @@ from app.models.contratacao import (  # noqa: F401
     Mensagem,
     Notificacao,
     Pagamento,
+    TentativaContato,
     Vaga,
 )
 from app.models.enums import (  # noqa: F401

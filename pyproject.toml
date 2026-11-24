@@ -13,6 +13,8 @@ extend-immutable-calls = [
     "fastapi.Form",
     "fastapi.Query",
     "fastapi.Header",
+    "fastapi.File",
+    "fastapi.Form",
     "app.deps.exige_perfil",
 ]
 

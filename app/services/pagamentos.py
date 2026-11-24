@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.erros import erro_http
 from app.models import (
+    Conversa,
     Disputa,
     EstadoDisputa,
     EstadoPagamento,
@@ -30,11 +31,12 @@ from app.models import (
     Lancamento,
     Pagamento,
     PerfilContratante,
+    PerfilProfissional,
     TipoLancamento,
     Usuario,
     Vaga,
 )
-from app.services import biometria, configuracao
+from app.services import biometria, configuracao, notificacoes
 from app.services.varreduras import varredura
 from app.tempo import agora, como_utc
 
@@ -215,6 +217,12 @@ def _cobranca_vencida(pagamento: Pagamento) -> bool:
     )
 
 
+def _fechar_conversa(db: Session, vaga_id: int) -> None:
+    conversa = db.scalar(select(Conversa).where(Conversa.vaga_id == vaga_id))
+    if conversa is not None:
+        conversa.aberta = False
+
+
 def _expirar(db: Session, pagamento: Pagamento) -> None:
     """Marca a cobrança como expirada e devolve a vaga à publicação. Não faz commit."""
     pagamento.estado = EstadoPagamento.EXPIRADO
@@ -222,11 +230,21 @@ def _expirar(db: Session, pagamento: Pagamento) -> None:
     if vaga is not None and vaga.estado == EstadoVaga.AGUARDANDO_PAGAMENTO:
         vaga.estado = EstadoVaga.PUBLICADA
         vaga.profissional_id = None
+        _fechar_conversa(db, vaga.id)
 
 
 def _exigir_retido(pagamento: Pagamento) -> None:
     if pagamento.estado != EstadoPagamento.RETIDO:
         raise _erro_estado_pagamento(pagamento, EstadoPagamento.RETIDO)
+
+
+def _incrementar_servicos_concluidos(db: Session, vaga: Vaga) -> None:
+    """Incrementa os serviços concluídos do profissional quando a vaga entra em estado concluído."""
+    if vaga.profissional_id is None:
+        return
+    profissional = db.get(PerfilProfissional, vaga.profissional_id)
+    if profissional is not None:
+        profissional.servicos_concluidos = (profissional.servicos_concluidos or 0) + 1
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +337,7 @@ def reter(db: Session, pagamento: Pagamento) -> Pagamento:
     )
     pagamento.estado = EstadoPagamento.RETIDO
     vaga.estado = EstadoVaga.CONTRATADA
+    notificacoes.notificar_pagamento_retido(db, vaga, pagamento, commit=False)
     db.commit()
     db.refresh(pagamento)
     return pagamento
@@ -337,6 +356,8 @@ def liberar_integral(db: Session, pagamento: Pagamento) -> Pagamento:
     _lancar(db, pagamento, TipoLancamento.TAXA_PLATAFORMA, taxa, "Taxa da plataforma")
     pagamento.estado = EstadoPagamento.LIBERADO
     vaga.estado = EstadoVaga.LIBERADA
+    notificacoes.notificar_pagamento_liberado(db, vaga, parcial=False, commit=False)
+    _fechar_conversa(db, vaga.id)
     db.commit()
     db.refresh(pagamento)
     return pagamento
@@ -370,6 +391,8 @@ def liberar_parcial(db: Session, pagamento: Pagamento, percentual: Decimal | int
     _lancar(db, pagamento, TipoLancamento.ESTORNO, estorno, "Estorno parcial ao contratante")
     pagamento.estado = EstadoPagamento.LIBERADO_PARCIAL
     vaga.estado = EstadoVaga.LIBERADA_PARCIAL
+    notificacoes.notificar_pagamento_liberado(db, vaga, parcial=True, commit=False)
+    _fechar_conversa(db, vaga.id)
     db.commit()
     db.refresh(pagamento)
     return pagamento
@@ -390,6 +413,7 @@ def estornar_integral(
     _lancar(db, pagamento, TipoLancamento.ESTORNO, total, "Estorno integral ao contratante")
     pagamento.estado = EstadoPagamento.ESTORNADO
     vaga.estado = estado_vaga
+    _fechar_conversa(db, vaga.id)
     db.commit()
     db.refresh(pagamento)
     return pagamento
@@ -429,6 +453,8 @@ def confirmar_conclusao(db: Session, vaga: Vaga, contratante_usuario_id: int) ->
             fim_em=fim.isoformat(),
         )
     vaga.estado = EstadoVaga.CONCLUIDA
+    notificacoes.notificar_avaliacao_pendente(db, vaga, commit=False)
+    _incrementar_servicos_concluidos(db, vaga)
     db.commit()
     db.refresh(vaga)
     return vaga
@@ -496,6 +522,7 @@ def registrar_falta(db: Session, vaga: Vaga, *, exigir_tolerancia: bool = True) 
         estornar_integral(db, pagamento, estado_vaga=EstadoVaga.FALTA)
     else:
         vaga.estado = EstadoVaga.FALTA
+        _fechar_conversa(db, vaga.id)
         db.commit()
     db.refresh(vaga)
     return vaga
@@ -522,6 +549,8 @@ def concluir_automaticamente(db: Session) -> int:
     vencidas = _vagas_com_fim_vencido(db, ESTADOS_CONCLUIVEIS, "confirmacao_conclusao_min")
     for vaga in vencidas:
         vaga.estado = EstadoVaga.CONCLUIDA
+        notificacoes.notificar_avaliacao_pendente(db, vaga, commit=False)
+        _incrementar_servicos_concluidos(db, vaga)
     if vencidas:
         db.commit()
     return len(vencidas)

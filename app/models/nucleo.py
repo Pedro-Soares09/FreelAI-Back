@@ -103,9 +103,7 @@ class PerfilProfissional(MarcaTempo, Base):
     foto_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     endereco_id: Mapped[int | None] = mapped_column(ForeignKey("enderecos.id"), nullable=True)
     raio_km: Mapped[int] = mapped_column(SmallInteger, default=5)
-    disponivel_ate: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    disponivel_ate: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     servicos_concluidos: Mapped[int] = mapped_column(Integer, default=0)
     comunicacao: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     agilidade: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
@@ -196,9 +194,7 @@ class Experiencia(Base):
     __tablename__ = "experiencias"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    profissional_id: Mapped[int] = mapped_column(
-        ForeignKey("perfis_profissionais.id"), index=True
-    )
+    profissional_id: Mapped[int] = mapped_column(ForeignKey("perfis_profissionais.id"), index=True)
     categoria_id: Mapped[int | None] = mapped_column(ForeignKey("categorias.id"), nullable=True)
     descricao: Mapped[str] = mapped_column(Text)
     referencia_nome: Mapped[str | None] = mapped_column(String(120), nullable=True)
