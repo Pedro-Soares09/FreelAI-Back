@@ -244,6 +244,7 @@ class ComprovacaoDetalhe(BaseModel):
 
 
 class ItemChecklist(BaseModel):
+    id: int
     texto: str
     critico: bool
 

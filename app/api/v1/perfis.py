@@ -179,5 +179,7 @@ def consultar_seguranca_da_categoria(
         exige_qualificacao=categoria.exige_qualificacao,
         exige_epi=categoria.exige_epi,
         epis=[e.descricao for e in categoria.epis],
-        checklist=[ItemChecklist(texto=i.texto, critico=i.critico) for i in categoria.checklist],
+        checklist=[
+            ItemChecklist(id=i.id, texto=i.texto, critico=i.critico) for i in categoria.checklist
+        ],
     )

@@ -35,13 +35,12 @@ from app.models import (
     PerfilContratante,
     PerfilProfissional,
     Qualificacao,
-    RiscoCategoria,
     StatusAprovacao,
     TipoArquivo,
     TipoPerfil,
     Usuario,
 )
-from app.services import arquivos
+from app.services import arquivos, match
 from app.tempo import agora
 
 VERSAO_CONSENTIMENTO = "1.0"
@@ -77,40 +76,7 @@ def _categorias_por_slug(db: Session, slugs: list[str]) -> list[Categoria]:
     return [por_slug[s] for s in unicos]
 
 
-def _aprovado(registros, categoria_id: int | None = None) -> bool:
-    return any(
-        r.status == StatusAprovacao.APROVADO
-        and (categoria_id is None or r.categoria_id == categoria_id)
-        for r in registros
-    )
-
-
-def pendencias_da_categoria(db: Session, perfil: PerfilProfissional, categoria: Categoria):
-    """O que falta aprovar para o profissional atuar na categoria (SEG01, SEG02, SEG04)."""
-    faltas: list[str] = []
-    if categoria.risco != RiscoCategoria.BAIXO and perfil.experiencia_aprovada != (
-        StatusAprovacao.APROVADO
-    ):
-        faltas.append("experiencia")
-    if categoria.exige_qualificacao:
-        qualificacoes = db.scalars(
-            select(Qualificacao).where(
-                Qualificacao.profissional_id == perfil.id,
-                Qualificacao.categoria_id == categoria.id,
-            )
-        ).all()
-        if not _aprovado(qualificacoes):
-            faltas.append("qualificacao")
-    if categoria.exige_epi or categoria.risco != RiscoCategoria.BAIXO:
-        epis = db.scalars(
-            select(EpiProfissional).where(
-                EpiProfissional.profissional_id == perfil.id,
-                EpiProfissional.categoria_id == categoria.id,
-            )
-        ).all()
-        if (categoria.exige_epi or categoria.risco != RiscoCategoria.BAIXO) and not _aprovado(epis):
-            faltas.append("epi")
-    return faltas
+pendencias_da_categoria = match.pendencias_da_categoria
 
 
 # ---------------------------------------------------------------- montagem das respostas
