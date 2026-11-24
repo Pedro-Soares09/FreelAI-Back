@@ -72,9 +72,20 @@ vínculo entre `vaga_id` e `conversa_id`. Fecha para escrita automaticamente qua
 (`expirada`, `cancelada`, `falta`, `reembolsada` ou devolvida à publicação) ou é encerrada
 financeiramente (`liberada`, `liberada_parcial`).
 
-Como o navegador não envia cabeçalhos no handshake do WebSocket, o token JWT vai na query string
-(`?token=<access_token>`) e é validado antes do `accept()`. Falha de autenticação fecha com código
-`4401`; usuário que não faz parte da vaga fecha com `4403`; conversa inexistente fecha com `4404`.
+Como o navegador não envia cabeçalhos no handshake do WebSocket, há duas formas de autenticar:
+
+1. **Query string (`?token=<access_token>`, padrão `auth=query`)**: validado antes do `accept()`,
+   fechando imediatamente com `4401` em caso de token ausente ou inválido. **Atenção:** tokens na
+   query string podem ser registrados em logs de acesso/proxy; configure redação do parâmetro
+   `token` no proxy ou prefira o modo abaixo.
+2. **Primeira mensagem (`?auth=mensagem`, recomendada para evitar JWT em logs)**: aceita o socket,
+   aguarda até 5s pela primeira mensagem JSON `{"tipo": "auth", "token": "<jwt>"}`, responde
+   `{"tipo": "autenticado", "conversa_id": ..., "usuario_id": ...}` e fecha com `4401` se falhar.
+
+Clientes fora do navegador também podem enviar o cabeçalho `Authorization: Bearer <jwt>`.
+Em qualquer modo, usuário fora da vaga fecha com `4403` e conversa inexistente fecha com `4404`.
+O endpoint WebSocket abre uma sessão curta de banco apenas durante a autenticação e no
+processamento de cada mensagem, sem manter conexões do pool presas enquanto o socket está ocioso.
 
 Rotas (tag `conversas`):
 
@@ -88,7 +99,8 @@ Rotas (tag `conversas`):
   transmite em tempo real aos conectados.
 - `POST /api/v1/conversas/{conversa_id}/visto`: marca como lidas as mensagens recebidas da outra
   parte.
-- `WS /api/v1/conversas/{conversa_id}/ws?token=<jwt>`: canal em tempo real com broadcast em memória.
+- `WS /api/v1/conversas/{conversa_id}/ws?token=<jwt>` (ou `?auth=mensagem`): canal em tempo real
+  com broadcast em memória.
 
 ## Pagamento
 
@@ -209,3 +221,6 @@ ser usado com `docker run`.
 - O token de renovação não serve como token de acesso. Os tokens de renovação não são revogados
   individualmente: uma troca de senha não invalida os já emitidos.
 - O SQLite é aberto com chaves estrangeiras ativas, para se comportar como o PostgreSQL.
+- No WebSocket do chat, passar o JWT via `?token=<jwt>` pode registrar o token em logs de acesso e
+  proxies; prefira `?auth=mensagem` (enviando o token na primeira mensagem JSON) ou faça redação do
+  parâmetro `token` nos logs do proxy reverso.

@@ -1,9 +1,15 @@
 """Rotas REST e WebSocket de conversas e mensagens (regra FLX07).
 
 A conversa nasce no aceite do convite (1 por vaga). Como o navegador não envia cabeçalhos no
-handshake do WebSocket, o token JWT vem na query string (`?token=...`) e é validado antes do
-`accept()`; qualquer falha fecha a conexão com código 4401.
+handshake do WebSocket, o token JWT pode ir na query string (`?token=...`, validado antes do
+`accept()`), na primeira mensagem JSON (`?auth=mensagem`) para evitar exposição em logs de acesso,
+ou via cabeçalho `Authorization: Bearer <jwt>`. Falhas fecham a conexão com código 4401.
 """
+
+import asyncio
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Literal
 
 from fastapi import (
     APIRouter,
@@ -33,6 +39,8 @@ from app.services.conversas import (
     WS_CODIGO_SEM_ACESSO,
     gerenciador_conexoes,
 )
+
+WS_TIMEOUT_AUTH_SEGUNDOS = 5.0
 
 router = APIRouter(tags=["conversas"])
 
@@ -117,32 +125,108 @@ def marcar_conversa_como_vista(
     return conversas.marcar_visto(db, conversa_id, usuario)
 
 
+@contextmanager
+def _sessao_ws(websocket: WebSocket) -> Iterator[Session]:
+    """Abre e fecha uma sessão curta de banco por operação, respeitando overrides de teste."""
+    provedor = websocket.app.dependency_overrides.get(get_db, get_db)
+    with contextmanager(provedor)() as sessao:
+        yield sessao
+
+
+def _extrair_bearer(websocket: WebSocket) -> str | None:
+    cabecalho = websocket.headers.get("authorization")
+    if not cabecalho:
+        return None
+    esquema, _, token = cabecalho.partition(" ")
+    if esquema.lower() != "bearer" or not token.strip():
+        return None
+    return token.strip()
+
+
+def _autenticar_e_autorizar_ws(
+    websocket: WebSocket, conversa_id: int, token: str | None
+) -> tuple[int, int] | int:
+    """Valida token e acesso à conversa em uma sessão curta de banco."""
+    with _sessao_ws(websocket) as db:
+        usuario = conversas.autenticar_token_ws(db, token)
+        if usuario is None:
+            return WS_CODIGO_NAO_AUTENTICADO
+        try:
+            conversa, _ = conversas.exigir_participante(db, conversa_id, usuario)
+        except HTTPException as erro:
+            return (
+                WS_CODIGO_NAO_ENCONTRADA
+                if erro.status_code == status.HTTP_404_NOT_FOUND
+                else WS_CODIGO_SEM_ACESSO
+            )
+        return usuario.id, conversa.id
+
+
+async def _autenticar_primeira_mensagem(
+    websocket: WebSocket, conversa_id: int
+) -> tuple[int, int] | None:
+    """Recebe o token JWT na primeira mensagem JSON após o handshake."""
+    try:
+        primeiro = await asyncio.wait_for(
+            websocket.receive_json(), timeout=WS_TIMEOUT_AUTH_SEGUNDOS
+        )
+    except WebSocketDisconnect:
+        return None
+    except (TimeoutError, ValueError):
+        await websocket.close(code=WS_CODIGO_NAO_AUTENTICADO)
+        return None
+
+    if (
+        not isinstance(primeiro, dict)
+        or primeiro.get("tipo", "auth") != "auth"
+        or not isinstance(primeiro.get("token"), str)
+        or not primeiro["token"].strip()
+    ):
+        await websocket.close(code=WS_CODIGO_NAO_AUTENTICADO)
+        return None
+
+    resultado = _autenticar_e_autorizar_ws(
+        websocket, conversa_id, primeiro["token"].strip()
+    )
+    if isinstance(resultado, int):
+        await websocket.close(code=resultado)
+        return None
+
+    usuario_id, conversa_id_real = resultado
+    await websocket.send_json(
+        {
+            "tipo": "autenticado",
+            "conversa_id": conversa_id_real,
+            "usuario_id": usuario_id,
+        }
+    )
+    return usuario_id, conversa_id_real
+
+
 @router.websocket("/conversas/{conversa_id}/ws")
 async def websocket_conversa(
     websocket: WebSocket,
     conversa_id: int,
     token: str | None = Query(default=None),
-    db: Session = Depends(get_db),
+    auth: Literal["query", "mensagem"] = Query(default="query"),
 ) -> None:
-    """Canal em tempo real da conversa. Valida JWT na query string antes do `accept()`."""
-    usuario = conversas.autenticar_token_ws(db, token)
-    if usuario is None:
-        await websocket.close(code=WS_CODIGO_NAO_AUTENTICADO)
-        return
+    """Canal em tempo real da conversa com sessão curta de banco por operação."""
+    if auth == "mensagem":
+        await websocket.accept()
+        autenticado = await _autenticar_primeira_mensagem(websocket, conversa_id)
+        if autenticado is None:
+            return
+        usuario_id, conversa_id_real = autenticado
+    else:
+        credencial = token or _extrair_bearer(websocket)
+        resultado = _autenticar_e_autorizar_ws(websocket, conversa_id, credencial)
+        if isinstance(resultado, int):
+            await websocket.close(code=resultado)
+            return
+        usuario_id, conversa_id_real = resultado
+        await websocket.accept()
 
-    try:
-        conversa, vaga = conversas.exigir_participante(db, conversa_id, usuario)
-    except HTTPException as erro:
-        codigo = (
-            WS_CODIGO_NAO_ENCONTRADA
-            if erro.status_code == status.HTTP_404_NOT_FOUND
-            else WS_CODIGO_SEM_ACESSO
-        )
-        await websocket.close(code=codigo)
-        return
-
-    await websocket.accept()
-    gerenciador_conexoes.registrar(conversa.id, websocket)
+    gerenciador_conexoes.registrar(conversa_id_real, websocket)
     try:
         while True:
             try:
@@ -179,19 +263,37 @@ async def websocket_conversa(
                 )
                 continue
 
-            db.refresh(conversa)
-            db.refresh(vaga)
-            try:
-                mensagem = conversas.registrar_mensagem(
-                    db,
-                    conversa,
-                    vaga,
-                    usuario,
-                    texto=entrada.texto,
-                    anexo_url=entrada.anexo_url,
-                )
-            except HTTPException as erro:
-                detalhe_erro = erro.detail if isinstance(erro.detail, dict) else {}
+            carga: dict | None = None
+            erro_envio: HTTPException | None = None
+            fechar_nao_autenticado = False
+
+            with _sessao_ws(websocket) as db:
+                usuario = db.get(Usuario, usuario_id)
+                if usuario is None or not conversas.conta_ativa_no_ws(db, usuario):
+                    fechar_nao_autenticado = True
+                else:
+                    try:
+                        conversa, vaga = conversas.exigir_participante(
+                            db, conversa_id_real, usuario
+                        )
+                        mensagem = conversas.registrar_mensagem(
+                            db,
+                            conversa,
+                            vaga,
+                            usuario,
+                            texto=entrada.texto,
+                            anexo_url=entrada.anexo_url,
+                        )
+                        carga = conversas.montar_mensagem(mensagem).model_dump(mode="json")
+                    except HTTPException as erro:
+                        erro_envio = erro
+
+            if fechar_nao_autenticado:
+                await websocket.close(code=WS_CODIGO_NAO_AUTENTICADO)
+                return
+
+            if erro_envio is not None:
+                detalhe_erro = erro_envio.detail if isinstance(erro_envio.detail, dict) else {}
                 await websocket.send_json(
                     {
                         "tipo": "erro",
@@ -201,12 +303,9 @@ async def websocket_conversa(
                 )
                 continue
 
-            detalhe = conversas.montar_mensagem(mensagem)
-            await gerenciador_conexoes.transmitir(
-                conversa.id,
-                detalhe.model_dump(mode="json"),
-            )
+            if carga is not None:
+                await gerenciador_conexoes.transmitir(conversa_id_real, carga)
     except WebSocketDisconnect:
         pass
     finally:
-        gerenciador_conexoes.desconectar(conversa.id, websocket)
+        gerenciador_conexoes.desconectar(conversa_id_real, websocket)

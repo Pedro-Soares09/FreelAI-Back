@@ -422,8 +422,23 @@ def marcar_visto(db: Session, conversa_id: int, usuario: Usuario) -> ResultadoVi
     )
 
 
+def conta_ativa_no_ws(db: Session, usuario: Usuario) -> bool:
+    """Confirma que a conta não está banida nem suspensa (reativa suspensão já vencida)."""
+    if usuario.estado == EstadoConta.BANIDA:
+        return False
+    if usuario.estado == EstadoConta.SUSPENSA:
+        retorno = usuario.suspensa_ate and como_utc(usuario.suspensa_ate)
+        if retorno is not None and retorno <= agora():
+            usuario.estado = EstadoConta.ATIVA
+            usuario.suspensa_ate = None
+            db.commit()
+        else:
+            return False
+    return True
+
+
 def autenticar_token_ws(db: Session, token: str | None) -> Usuario | None:
-    """Valida o JWT da query string antes do `accept` do WebSocket.
+    """Valida o JWT do WebSocket (query string, cabeçalho Bearer ou primeira mensagem).
 
     Devolve `None` quando o token está ausente, inválido, expirado ou pertence a uma conta
     banida ou suspensa.
@@ -437,18 +452,8 @@ def autenticar_token_ws(db: Session, token: str | None) -> Usuario | None:
         return None
 
     usuario = db.get(Usuario, usuario_id)
-    if usuario is None:
+    if usuario is None or not conta_ativa_no_ws(db, usuario):
         return None
-    if usuario.estado == EstadoConta.BANIDA:
-        return None
-    if usuario.estado == EstadoConta.SUSPENSA:
-        retorno = usuario.suspensa_ate and como_utc(usuario.suspensa_ate)
-        if retorno is not None and retorno <= agora():
-            usuario.estado = EstadoConta.ATIVA
-            usuario.suspensa_ate = None
-            db.commit()
-        else:
-            return None
     return usuario
 
 

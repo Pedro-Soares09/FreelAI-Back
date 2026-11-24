@@ -365,3 +365,146 @@ def test_rotas_rest_recusam_terceiro_e_nao_autenticado(cliente, db):
 
     # Terceiro só vê suas próprias conversas (lista vazia)
     assert cliente.get("/api/v1/conversas", headers=cabecalho(terceiro)).json() == []
+
+
+# --- Sessão curta por mensagem, primeira mensagem e cabeçalho Bearer --------------------
+
+
+def test_websocket_nao_mantem_sessao_de_banco_aberta_enquanto_conectado(cliente, db):
+    from app.db import get_db
+    from app.main import app
+
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+    provedor_original = app.dependency_overrides[get_db]
+    contadores = {"abertas": 0, "total_aberturas": 0}
+
+    def get_db_rastreado():
+        gen = provedor_original()
+        sessao = next(gen)
+        contadores["abertas"] += 1
+        contadores["total_aberturas"] += 1
+        try:
+            yield sessao
+        finally:
+            contadores["abertas"] -= 1
+            try:
+                next(gen)
+            except StopIteration:
+                pass
+
+    app.dependency_overrides[get_db] = get_db_rastreado
+    try:
+        url = f"/api/v1/conversas/{conversa.id}/ws?token={_token(cenario.contratante)}"
+        with cliente.websocket_connect(url) as ws:
+            assert contadores["abertas"] == 0
+            assert contadores["total_aberturas"] == 1
+
+            ws.send_json({"texto": "Sessão curta por mensagem"})
+            recebida = ws.receive_json()
+
+            assert recebida["texto"] == "Sessão curta por mensagem"
+            assert contadores["abertas"] == 0
+            assert contadores["total_aberturas"] == 2
+    finally:
+        app.dependency_overrides[get_db] = provedor_original
+
+
+def test_websocket_aceita_autenticacao_na_primeira_mensagem_sem_token_na_url(cliente, db):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+    url = f"/api/v1/conversas/{conversa.id}/ws?auth=mensagem"
+
+    with (
+        cliente.websocket_connect(url) as ws_contratante,
+        cliente.websocket_connect(url) as ws_profissional,
+    ):
+        ws_contratante.send_json({"tipo": "auth", "token": _token(cenario.contratante)})
+        ack_cont = ws_contratante.receive_json()
+        assert ack_cont == {
+            "tipo": "autenticado",
+            "conversa_id": conversa.id,
+            "usuario_id": cenario.contratante.id,
+        }
+
+        ws_profissional.send_json({"tipo": "auth", "token": _token(cenario.profissional)})
+        ack_prof = ws_profissional.receive_json()
+        assert ack_prof == {
+            "tipo": "autenticado",
+            "conversa_id": conversa.id,
+            "usuario_id": cenario.profissional.id,
+        }
+
+        ws_contratante.send_json({"texto": "Token nunca foi na URL!"})
+        eco = ws_contratante.receive_json()
+        recebida = ws_profissional.receive_json()
+        assert eco == recebida
+        assert recebida["texto"] == "Token nunca foi na URL!"
+
+    historico = cliente.get(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        headers=cabecalho(cenario.contratante),
+    )
+    assert [m["texto"] for m in historico.json()] == ["Token nunca foi na URL!"]
+
+
+def test_websocket_auth_na_primeira_mensagem_recusa_invalido_timeout_e_intruso(
+    cliente, db, monkeypatch
+):
+    from app.api.v1 import conversas as rotas_conversas
+
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+    outro = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    url = f"/api/v1/conversas/{conversa.id}/ws?auth=mensagem"
+
+    for carga in (
+        {"tipo": "auth", "token": "invalido"},
+        {"tipo": "auth", "token": ""},
+        {"tipo": "outro", "token": _token(cenario.contratante)},
+        {"texto": "sem autenticar"},
+    ):
+        with cliente.websocket_connect(url) as ws:
+            ws.send_json(carga)
+            with pytest.raises(WebSocketDisconnect) as erro:
+                ws.receive_json()
+            assert erro.value.code == WS_CODIGO_NAO_AUTENTICADO
+
+    # Intruso de outra vaga -> 4403
+    with cliente.websocket_connect(url) as ws:
+        ws.send_json({"tipo": "auth", "token": _token(outro.contratante)})
+        with pytest.raises(WebSocketDisconnect) as erro:
+            ws.receive_json()
+        assert erro.value.code == WS_CODIGO_SEM_ACESSO
+
+    # Conversa inexistente -> 4404
+    with cliente.websocket_connect("/api/v1/conversas/9999/ws?auth=mensagem") as ws:
+        ws.send_json({"tipo": "auth", "token": _token(cenario.contratante)})
+        with pytest.raises(WebSocketDisconnect) as erro:
+            ws.receive_json()
+        assert erro.value.code == WS_CODIGO_NAO_ENCONTRADA
+
+    # Timeout esperando a primeira mensagem -> 4401
+    monkeypatch.setattr(rotas_conversas, "WS_TIMEOUT_AUTH_SEGUNDOS", 0.05)
+    with cliente.websocket_connect(url) as ws:
+        with pytest.raises(WebSocketDisconnect) as erro:
+            ws.receive_json()
+        assert erro.value.code == WS_CODIGO_NAO_AUTENTICADO
+
+
+def test_websocket_aceita_cabecalho_authorization_bearer(cliente, db):
+    cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
+    conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
+
+    with cliente.websocket_connect(
+        f"/api/v1/conversas/{conversa.id}/ws",
+        headers=cabecalho(cenario.contratante),
+    ) as ws:
+        ws.send_json({"texto": "Via header Authorization"})
+        assert ws.receive_json()["texto"] == "Via header Authorization"
+
+    historico = cliente.get(
+        f"/api/v1/conversas/{conversa.id}/mensagens",
+        headers=cabecalho(cenario.contratante),
+    )
+    assert [m["texto"] for m in historico.json()] == ["Via header Authorization"]
