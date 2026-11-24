@@ -1,8 +1,9 @@
 """Plano Pro simulado, aceite de termos versionados e exclusão de conta."""
 
 from datetime import timedelta
+from io import BytesIO
 
-from app.models import EstadoVaga, PerfilProfissional, TipoPerfil
+from app.models import AceiteTermos, Arquivo, EstadoVaga, PerfilProfissional, TipoPerfil
 from app.services import conta
 from app.tempo import avancar_relogio
 from tests.fabricas import (
@@ -12,6 +13,7 @@ from tests.fabricas import (
     criar_profissional,
     criar_usuario,
 )
+from tests.test_arquivos import BYTES_JPEG
 
 # ---------------------------------------------------------------- plano Pro
 
@@ -147,3 +149,33 @@ def test_exclusao_e_barrada_com_vaga_em_andamento(cliente, db):
 
     assert resposta.status_code == 409
     assert resposta.json()["detail"]["codigo"] == "conta_com_compromissos"
+
+
+def test_exclusao_apaga_selfie_documento_e_consentimento_de_biometria(cliente, db):
+    from app.services import arquivos
+
+    profissional = criar_profissional(db)
+    usuario = profissional.usuario
+    cab = cabecalho(usuario)
+    jpeg = BYTES_JPEG
+    chaves = []
+    for tipo in ("selfie", "documento"):
+        enviado = cliente.post(
+            "/api/v1/arquivos",
+            data={"tipo": tipo},
+            files={"arquivo": ("a.jpg", BytesIO(jpeg), "image/jpeg")},
+            headers=cab,
+        )
+        assert enviado.status_code == 201
+        chaves.append(db.get(Arquivo, enviado.json()["id"]).chave)
+    cliente.post("/api/v1/verificacao/consentimento", headers=cab)
+    armazenamento = arquivos.obter_armazenamento()
+    assert all(armazenamento.ler(chave) is not None for chave in chaves)
+
+    resposta = cliente.post("/api/v1/conta/exclusao", json={"senha": SENHA_PADRAO}, headers=cab)
+
+    assert resposta.status_code == 204
+    db.expire_all()
+    assert db.query(Arquivo).filter_by(usuario_id=usuario.id).count() == 0
+    assert db.query(AceiteTermos).filter_by(usuario_id=usuario.id).count() == 0
+    assert all(armazenamento.ler(chave) is None for chave in chaves)
