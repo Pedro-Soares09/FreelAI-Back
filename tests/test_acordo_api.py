@@ -108,3 +108,15 @@ def test_cobranca_exige_o_aceite_das_duas_partes(cliente, db, cenario):
 
     cliente.post(_url(cenario, "/aceite"), headers=cabecalho(cenario.profissional))
     assert cliente.post(url, headers=cabecalho(cenario.contratante)).status_code == 201
+
+
+def test_acordo_continua_consultavel_em_disputa(cliente, db, cenario):
+    vaga = db.get(Vaga, cenario.vaga.id)
+    vaga.estado = EstadoVaga.EM_DISPUTA
+    db.commit()
+
+    consulta = cliente.get(_url(cenario), headers=cabecalho(cenario.contratante))
+    aceite = cliente.post(_url(cenario, "/aceite"), headers=cabecalho(cenario.contratante))
+
+    assert consulta.status_code == 200
+    assert aceite.status_code == 409

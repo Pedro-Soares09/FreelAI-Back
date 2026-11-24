@@ -37,6 +37,8 @@ ESTADOS_COM_ACORDO = ESTADOS_ACEITAVEIS + (
     EstadoVaga.CONCLUIDA,
     EstadoVaga.LIBERADA,
     EstadoVaga.LIBERADA_PARCIAL,
+    EstadoVaga.EM_DISPUTA,
+    EstadoVaga.REEMBOLSADA,
 )
 
 
