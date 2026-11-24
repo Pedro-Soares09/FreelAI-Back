@@ -567,3 +567,20 @@ def test_terceira_rodada_sem_elegiveis_mantem_a_rodada(db, categoria, vaga):
 
     assert match.gerar_rodada(db, vaga) == []
     assert vaga.rodada == 1
+
+
+def test_plano_pro_nao_altera_a_pontuacao_nem_o_ranking(db, categoria, vaga):
+    perto = criar_profissional(db, categorias=(categoria,), latitude=PERTO)
+    meio = criar_profissional(db, categorias=(categoria,), latitude=MEIO)
+    longe = criar_profissional(db, categorias=(categoria,), latitude=LONGE)
+    antes = [(p.id, match.pontuar(db, vaga, p)) for p in (perto, meio, longe)]
+    ranking_antes = _ids(p for p, _ in match.selecionar_top3(db, vaga))
+
+    # O pior colocado assina o plano Pro: nota e ordem precisam continuar iguais.
+    longe.pro = True
+    db.commit()
+
+    depois = [(p.id, match.pontuar(db, vaga, p)) for p in (perto, meio, longe)]
+    ranking_depois = _ids(p for p, _ in match.selecionar_top3(db, vaga))
+    assert depois == antes
+    assert ranking_depois == ranking_antes

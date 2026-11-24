@@ -11,16 +11,18 @@ from sqlalchemy.orm import Session
 from app.erros import erro_http
 from app.models import (
     AceiteTermos,
+    Arquivo,
     AssinaturaPro,
     EstadoConta,
     EstadoVaga,
     FinalidadeAceite,
     PerfilProfissional,
+    TipoArquivo,
     Usuario,
     Vaga,
 )
 from app.security import hash_password, verify_password
-from app.services import configuracao
+from app.services import arquivos, configuracao
 from app.services.varreduras import varredura
 from app.tempo import agora, como_utc
 
@@ -154,6 +156,24 @@ def aceitar_termos(db: Session, usuario: Usuario, versao: str) -> dict:
 # ---------------------------------------------------------------- exclusão de conta
 
 
+def _apagar_dados_biometricos(db: Session, usuario: Usuario) -> None:
+    """Remove selfie, documento, foto e o consentimento de biometria (LGP02 e LGP03)."""
+    armazenamento = arquivos.obter_armazenamento()
+    sensiveis = (TipoArquivo.SELFIE, TipoArquivo.DOCUMENTO, TipoArquivo.FOTO)
+    for arquivo in db.scalars(
+        select(Arquivo).where(Arquivo.usuario_id == usuario.id, Arquivo.tipo.in_(sensiveis))
+    ):
+        armazenamento.remover(arquivo.chave)
+        db.delete(arquivo)
+    for aceite in db.scalars(
+        select(AceiteTermos).where(
+            AceiteTermos.usuario_id == usuario.id,
+            AceiteTermos.finalidade == FinalidadeAceite.BIOMETRIA,
+        )
+    ):
+        db.delete(aceite)
+
+
 def excluir_conta(db: Session, usuario: Usuario, senha: str) -> None:
     """Anonimiza os dados pessoais e bloqueia o acesso; o histórico financeiro permanece."""
     if not verify_password(senha, usuario.senha_hash):
@@ -173,6 +193,7 @@ def excluir_conta(db: Session, usuario: Usuario, senha: str) -> None:
                 "conta_com_compromissos",
                 "Conclua ou cancele as vagas em andamento antes de excluir a conta.",
             )
+    _apagar_dados_biometricos(db, usuario)
     usuario.nome = "Conta excluída"
     usuario.email = f"excluida-{usuario.id}@excluida.invalid"
     usuario.senha_hash = hash_password(secrets.token_urlsafe(24))
