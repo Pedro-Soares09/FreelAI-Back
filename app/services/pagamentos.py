@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.erros import erro_http
 from app.models import (
+    Contrato,
     Conversa,
     Disputa,
     EstadoDisputa,
@@ -33,6 +34,7 @@ from app.models import (
     PerfilContratante,
     PerfilProfissional,
     TipoLancamento,
+    TipoPerfil,
     Usuario,
     Vaga,
 )
@@ -179,6 +181,18 @@ def exigir_contratante_dono(db: Session, vaga: Vaga, usuario_id: int) -> None:
             status.HTTP_403_FORBIDDEN,
             "vaga_de_outro_contratante",
             "Somente o contratante que publicou a vaga pode fazer esta ação.",
+        )
+
+
+def exigir_aceites_do_acordo(db: Session, vaga: Vaga) -> None:
+    """A cobrança só abre depois que contratante e profissional deram o aceite do acordo."""
+    contrato = db.scalar(select(Contrato).where(Contrato.vaga_id == vaga.id))
+    aceitos = {a.perfil for a in contrato.aceites} if contrato else set()
+    if aceitos != {TipoPerfil.CONTRATANTE, TipoPerfil.PROFISSIONAL}:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "acordo_pendente",
+            "As duas partes precisam aceitar o acordo antes do pagamento.",
         )
 
 

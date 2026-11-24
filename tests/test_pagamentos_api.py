@@ -24,7 +24,9 @@ def demo(monkeypatch):
 @pytest.fixture
 def cenario(db):
     fixar_relogio(BASE)
-    return criar_cenario_vaga(db, inicio_em=BASE + timedelta(hours=1), duracao_minutos=120)
+    return criar_cenario_vaga(
+        db, aceites_completos=True, inicio_em=BASE + timedelta(hours=1), duracao_minutos=120
+    )
 
 
 # Autorização
@@ -69,7 +71,7 @@ def test_conta_pendente_nao_abre_cobranca(cliente, db):
         perfis=(TipoPerfil.CONTRATANTE,),
         perfil_ativo=TipoPerfil.CONTRATANTE,
     )
-    cenario = criar_cenario_vaga(db, contratante=pendente)
+    cenario = criar_cenario_vaga(db, aceites_completos=True, contratante=pendente)
 
     resposta = cliente.post(_url_pagamento(cenario.vaga.id), headers=cabecalho(pendente))
 

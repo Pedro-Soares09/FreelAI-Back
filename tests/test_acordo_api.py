@@ -94,3 +94,17 @@ def test_do_acordo_ao_pix_retido(cliente, db, cenario):
     assert pago.status_code == 200
     assert pago.json()["estado"] == "retido"
     assert pago.json()["vaga_estado"] == "contratada"
+
+
+def test_cobranca_exige_o_aceite_das_duas_partes(cliente, db, cenario):
+    url = f"/api/v1/vagas/{cenario.vaga.id}/pagamento"
+    sem_aceite = cliente.post(url, headers=cabecalho(cenario.contratante))
+    assert sem_aceite.status_code == 409
+    assert sem_aceite.json()["detail"]["codigo"] == "acordo_pendente"
+
+    cliente.post(_url(cenario, "/aceite"), headers=cabecalho(cenario.contratante))
+    so_um = cliente.post(url, headers=cabecalho(cenario.contratante))
+    assert so_um.status_code == 409
+
+    cliente.post(_url(cenario, "/aceite"), headers=cabecalho(cenario.profissional))
+    assert cliente.post(url, headers=cabecalho(cenario.contratante)).status_code == 201
