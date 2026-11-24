@@ -264,8 +264,10 @@ def consultar_avaliacoes_da_vaga(
     instante = agora()
     limite = prazo_avaliacao_vaga(db, vaga)
     ambos_avaliaram = len(todas) >= 2
-    reveladas = ambos_avaliaram or instante >= limite or any(
-        _avaliacao_esta_visivel(item, instante) for item in todas
+    reveladas = (
+        ambos_avaliaram
+        or instante >= limite
+        or any(_avaliacao_esta_visivel(item, instante) for item in todas)
     )
 
     minha = None

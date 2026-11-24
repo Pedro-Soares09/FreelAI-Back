@@ -239,9 +239,7 @@ async def _autenticar_primeira_mensagem(
         await websocket.close(code=WS_CODIGO_NAO_AUTENTICADO)
         return None
 
-    resultado = _autenticar_e_autorizar_ws(
-        websocket, conversa_id, primeiro["token"].strip()
-    )
+    resultado = _autenticar_e_autorizar_ws(websocket, conversa_id, primeiro["token"].strip())
     if isinstance(resultado, int):
         await websocket.close(code=resultado)
         return None

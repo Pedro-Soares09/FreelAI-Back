@@ -197,9 +197,7 @@ def test_avaliar_apos_48h_ou_duas_vezes_ou_antes_da_conclusao_e_recusado(
         (3.0, 5 / 20, 3, 2.85),
     ],
 )
-def test_formula_reputacao_70_20_10_exemplos_do_readme(
-    nota_media, taxa_canc, denuncias, esperado
-):
+def test_formula_reputacao_70_20_10_exemplos_do_readme(nota_media, taxa_canc, denuncias, esperado):
     reputacao, _, _, _ = avaliacoes.formula_reputacao(
         nota_media=nota_media,
         taxa_cancelamento_tardio=taxa_canc,

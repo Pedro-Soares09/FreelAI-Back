@@ -50,9 +50,7 @@ WS_CODIGO_NAO_ENCONTRADA = 4404
 
 LIMITE_TENTATIVAS_CONTATO = 3
 MOTIVO_DENUNCIA_CONTATO = "tentativa_de_contato_externo"
-AVISO_CONTATO_BLOQUEADO = (
-    "Por segurança, não é permitido enviar telefone ou WhatsApp pelo chat."
-)
+AVISO_CONTATO_BLOQUEADO = "Por segurança, não é permitido enviar telefone ou WhatsApp pelo chat."
 
 BYTES_POR_MB = 1024 * 1024
 TAMANHO_BLOCO_ANEXO = 64 * 1024
@@ -374,9 +372,9 @@ def listar_conversas_do_usuario(db: Session, usuario: Usuario) -> list[ConversaR
     resumos = [montar_resumo(db, conversa, vaga, usuario.id) for conversa, vaga in pares]
     resumos.sort(
         key=lambda r: (
-            r.ultima_mensagem.enviada_em if r.ultima_mensagem is not None else datetime.min.replace(
-                tzinfo=como_utc(agora()).tzinfo
-            ),
+            r.ultima_mensagem.enviada_em
+            if r.ultima_mensagem is not None
+            else datetime.min.replace(tzinfo=como_utc(agora()).tzinfo),
             r.id,
         ),
         reverse=True,
@@ -400,9 +398,7 @@ def listar_historico(db: Session, conversa_id: int, usuario: Usuario) -> list[Me
     """Histórico completo da conversa em ordem cronológica."""
     conversa, _ = exigir_participante(db, conversa_id, usuario)
     mensagens = db.scalars(
-        select(Mensagem)
-        .where(Mensagem.conversa_id == conversa.id)
-        .order_by(Mensagem.id.asc())
+        select(Mensagem).where(Mensagem.conversa_id == conversa.id).order_by(Mensagem.id.asc())
     ).all()
     return [montar_mensagem(item) for item in mensagens]
 

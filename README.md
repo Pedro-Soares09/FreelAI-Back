@@ -151,7 +151,25 @@ Rotas administrativas (exigem conta com papel `admin`):
 - `POST /api/v1/admin/prazos/varrer`: força a execução imediata das varreduras de prazo
   registradas com `@varredura("nome")` em `app/services/varreduras.py`.
 - `GET /api/v1/admin/configuracoes`: valores efetivos do perfil atual.
-- `GET /api/v1/admin/denuncias`: lista denúncias registradas (com filtros opcionais `estado` e `origem`).
+- `GET /api/v1/admin/denuncias`: fila de denúncias (manuais e automáticas) com tempo em espera e
+  meta de 48h úteis.
+- `POST /api/v1/admin/denuncias/{denuncia_id}/decisao`: decide a denúncia como `procedente` ou
+  `improcedente` com motivo.
+
+## Denúncias e fila administrativa (SEG05)
+
+Qualquer usuário autenticado pode registrar uma denúncia a partir de um perfil (`denunciado_id`),
+de uma vaga (`vaga_id`) ou de uma conversa de chat (`conversa_id`), informando `motivo` e
+`descricao`. Denúncias automáticas do chat (`origem = automatica`) entram na mesma fila.
+
+- `POST /api/v1/denuncias`: abre uma denúncia na fila administrativa.
+- `GET /api/v1/denuncias` e `GET /api/v1/denuncias/{denuncia_id}`: consulta sem jamais expor
+  `denunciante_id` ao denunciado.
+- `GET /api/v1/admin/denuncias`: lista a fila com `tempo_espera_minutos`,
+  `tempo_espera_horas_uteis`, `meta_horas_uteis` (48h úteis) e `acima_da_meta`.
+- `POST /api/v1/admin/denuncias/{denuncia_id}/decisao`: grava `procedente` ou `improcedente` com
+  `decisao_motivo` e `decidido_em`. Denúncias procedentes contam para a reputação e suspendem a
+  conta ao atingir `denuncias_para_suspensao`.
 
 ## Match
 

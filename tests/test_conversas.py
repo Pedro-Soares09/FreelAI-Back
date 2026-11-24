@@ -103,9 +103,7 @@ def test_conversa_nasce_no_aceite_uma_por_vaga_e_integra_ids(cliente, db):
         EstadoVaga.LIBERADA_PARCIAL,
     ],
 )
-def test_conversa_fecha_para_escrita_quando_a_vaga_cai_ou_encerra(
-    cliente, db, estado_queda
-):
+def test_conversa_fecha_para_escrita_quando_a_vaga_cai_ou_encerra(cliente, db, estado_queda):
     cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
     conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
 
@@ -206,9 +204,7 @@ def test_websocket_recusa_conversa_inexistente_com_4404(cliente, db):
 # --- WebSocket: tempo real (< 1s) e persistência no histórico ----------------------------
 
 
-def test_mensagem_via_websocket_chega_ao_outro_lado_em_menos_de_1s_e_fica_no_historico(
-    cliente, db
-):
+def test_mensagem_via_websocket_chega_ao_outro_lado_em_menos_de_1s_e_fica_no_historico(cliente, db):
     cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
     conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
 
@@ -550,9 +546,7 @@ def test_websocket_aceita_cabecalho_authorization_bearer(cliente, db):
         "Link wa.me/5581999999999",
     ],
 )
-def test_filtro_barra_telefone_brasileiro_e_palavras_de_whatsapp(
-    cliente, db, mensagem_bloqueada
-):
+def test_filtro_barra_telefone_brasileiro_e_palavras_de_whatsapp(cliente, db, mensagem_bloqueada):
     cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
     conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
 
@@ -673,9 +667,7 @@ def test_terceira_tentativa_cria_denuncia_automatica_visivel_no_admin(cliente, d
     assert itens[0]["estado"] == "aberta"
 
 
-def test_contador_de_tentativas_persiste_no_banco_entre_sessoes_independentes(
-    cliente, db, engine
-):
+def test_contador_de_tentativas_persiste_no_banco_entre_sessoes_independentes(cliente, db, engine):
     cenario = criar_cenario_vaga(db, estado=EstadoVaga.ACEITA)
     conversa = conversas.abrir_conversa_no_aceite(db, cenario.vaga)
 
@@ -691,8 +683,7 @@ def test_contador_de_tentativas_persiste_no_banco_entre_sessoes_independentes(
     sessao_fabrica = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     with sessao_fabrica() as sessao_nova:
         assert (
-            conversas.tentativas_de_contato(sessao_nova, conversa.id, cenario.profissional.id)
-            == 2
+            conversas.tentativas_de_contato(sessao_nova, conversa.id, cenario.profissional.id) == 2
         )
 
     terceira = cliente.post(
@@ -706,8 +697,7 @@ def test_contador_de_tentativas_persiste_no_banco_entre_sessoes_independentes(
 
     with sessao_fabrica() as sessao_final:
         assert (
-            conversas.tentativas_de_contato(sessao_final, conversa.id, cenario.profissional.id)
-            == 3
+            conversas.tentativas_de_contato(sessao_final, conversa.id, cenario.profissional.id) == 3
         )
 
 
