@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @model_validator(mode="after")
+    def _normalizar_url_do_banco(self) -> "Settings":
+        # Hospedagens entregam "postgres://" ou "postgresql://"; o driver instalado é o psycopg 3.
+        for prefixo in ("postgres://", "postgresql://"):
+            if self.database_url.startswith(prefixo):
+                self.database_url = "postgresql+psycopg://" + self.database_url[len(prefixo) :]
+        return self
+
+    @model_validator(mode="after")
     def _exigir_segredo_forte_em_producao(self) -> "Settings":
         segredo_de_exemplo = self.secret_key in (SEGREDO_PADRAO,) or self.secret_key.startswith(
             "replace-this"
