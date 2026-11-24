@@ -12,6 +12,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Numeric,
     SmallInteger,
     String,
     Table,
@@ -60,6 +61,7 @@ class Usuario(MarcaTempo, Base):
     papel: Mapped[PapelUsuario] = mapped_column(_enum(PapelUsuario), default=PapelUsuario.USUARIO)
     perfil_ativo: Mapped[TipoPerfil | None] = mapped_column(_enum(TipoPerfil), nullable=True)
     suspensa_ate: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    excluida_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     perfil_profissional: Mapped["PerfilProfissional | None"] = relationship(
         back_populates="usuario", uselist=False
@@ -265,3 +267,16 @@ class Arquivo(Base):
     mime_type: Mapped[str] = mapped_column(String(64))
     tamanho_bytes: Mapped[int] = mapped_column(Integer)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+
+
+class AssinaturaPro(Base):
+    """Plano Pro simulado de um profissional; não altera a pontuação do match."""
+
+    __tablename__ = "assinaturas_pro"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profissional_id: Mapped[int] = mapped_column(ForeignKey("perfis_profissionais.id"), unique=True)
+    valor_mensal: Mapped[float] = mapped_column(Numeric(8, 2))
+    iniciada_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+    valido_ate: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    renovacao_automatica: Mapped[bool] = mapped_column(Boolean, default=True)

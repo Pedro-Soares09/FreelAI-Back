@@ -67,6 +67,10 @@ PARAMETROS: dict[str, Parametro] = {
     "peso_habilidades": Parametro(0.30, 0.30, "Peso das habilidades no match", inteiro=False),
     "peso_reputacao": Parametro(0.20, 0.20, "Peso da reputação no match", inteiro=False),
     "peso_preco": Parametro(0.10, 0.10, "Peso do preço no match", inteiro=False),
+    "plano_pro_valor": Parametro(
+        29.90, 29.90, "Valor mensal do plano Pro (simulado)", inteiro=False
+    ),
+    "plano_pro_dias": Parametro(30, 1, "Duração de cada período do plano Pro, em dias"),
     "raio_padrao_km": Parametro(5, 5, "Raio de busca padrão do profissional"),
     "raio_maximo_km": Parametro(15, 15, "Raio de busca máximo do profissional"),
     "servicos_para_deixar_de_ser_novo": Parametro(5, 5, "Serviços concluídos até o selo Novo sair"),
