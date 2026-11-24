@@ -17,6 +17,7 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -111,6 +112,11 @@ class PerfilProfissional(MarcaTempo, Base):
     organizacao: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     verificacao: Mapped[StatusAprovacao] = mapped_column(
         _enum(StatusAprovacao), default=StatusAprovacao.PENDENTE
+    )
+    pro: Mapped[bool] = mapped_column(
+    Boolean,
+    default=False,
+    server_default=false()
     )
     verificacao_motivo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     experiencia_aprovada: Mapped[StatusAprovacao] = mapped_column(

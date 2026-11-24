@@ -200,3 +200,61 @@ ser usado com `docker run`.
 - O token de renovação não serve como token de acesso. Os tokens de renovação não são revogados
   individualmente: uma troca de senha não invalida os já emitidos.
 - O SQLite é aberto com chaves estrangeiras ativas, para se comportar como o PostgreSQL.
+
+## Dados de demonstração (US10)
+
+O FreelAI disponibiliza um comando para popular o banco de dados com informações fictícias, utilizadas durante o desenvolvimento, testes e apresentações do projeto.
+
+### Como executar
+
+Antes de executar o seed, certifique-se de que as migrações foram aplicadas:
+
+```bash
+alembic upgrade head
+```
+
+Em seguida, execute:
+
+```bash
+python -m app.seed
+```
+
+O comando pode ser executado novamente sem duplicar os registros existentes (operação idempotente).
+
+### Dados criados
+
+O seed disponibiliza:
+
+- 5 categorias de serviços: montagem de móveis, limpeza, elétrica, pintura e jardinagem.
+- Categorias classificadas por nível de risco.
+- Equipamentos de proteção individual (EPI) por categoria.
+- Checklists de segurança por categoria.
+- 1 conta administrativa.
+- 20 profissionais fictícios distribuídos em bairros do Recife.
+- 5 contratantes fictícios.
+- 6 vagas em diferentes estados.
+
+Os profissionais possuem diferentes situações de cadastro e verificação, incluindo profissionais novos e assinantes Pro em cada categoria principal.
+
+Também são utilizadas coordenadas geográficas fictícias para representar profissionais dentro e fora do raio de 5 km das vagas.
+
+### Credenciais de demonstração
+
+Todas as contas criadas pelo seed utilizam a mesma senha:
+
+**Senha:** `FreelAI@2026!`
+
+**Administrador:**
+- `admin@freelai.local`
+
+**Profissionais:**
+- `profissional01@freelai.local` até `profissional20@freelai.local`
+
+**Contratantes:**
+- `contratante01@freelai.local` até `contratante05@freelai.local`
+
+### Observações
+
+- Todos os dados são fictícios.
+- O seed é destinado exclusivamente aos ambientes de desenvolvimento, testes e demonstração.
+- Não utilizar essas credenciais em ambiente de produção.
