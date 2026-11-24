@@ -37,6 +37,34 @@
         "title": "AceitesAcordo",
         "type": "object"
       },
+      "Body_conversas_enviar_anexo": {
+        "properties": {
+          "arquivo": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Imagem JPG/PNG ou PDF até 10 MB.",
+            "title": "Arquivo",
+            "type": "string"
+          },
+          "texto": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Legenda opcional.",
+            "title": "Texto"
+          }
+        },
+        "required": [
+          "arquivo"
+        ],
+        "title": "Body_conversas_enviar_anexo",
+        "type": "object"
+      },
       "CategoriaResumo": {
         "properties": {
           "nivel_risco": {
@@ -466,6 +494,116 @@
         "title": "DadosAcordo",
         "type": "object"
       },
+      "DenunciaAdminResumo": {
+        "properties": {
+          "conversa_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversa Id"
+          },
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "decidido_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidido Em"
+          },
+          "decisao_motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decisao Motivo"
+          },
+          "denunciado_id": {
+            "title": "Denunciado Id",
+            "type": "integer"
+          },
+          "denunciante_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denunciante Id"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoDenuncia"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "origem": {
+            "$ref": "#/components/schemas/OrigemDenuncia"
+          },
+          "vaga_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vaga Id"
+          }
+        },
+        "required": [
+          "id",
+          "denunciante_id",
+          "denunciado_id",
+          "vaga_id",
+          "conversa_id",
+          "origem",
+          "motivo",
+          "descricao",
+          "estado",
+          "decisao_motivo",
+          "criado_em",
+          "decidido_em"
+        ],
+        "title": "DenunciaAdminResumo",
+        "type": "object"
+      },
       "DivisaoValores": {
         "description": "Como o valor total se reparte entre profissional e plataforma.",
         "examples": [
@@ -525,6 +663,15 @@
           "banida"
         ],
         "title": "EstadoConta",
+        "type": "string"
+      },
+      "EstadoDenuncia": {
+        "enum": [
+          "aberta",
+          "procedente",
+          "improcedente"
+        ],
+        "title": "EstadoDenuncia",
         "type": "string"
       },
       "EstadoPagamento": {
@@ -746,9 +893,9 @@
                 "type": "null"
               }
             ],
-            "description": "URL de arquivo enviado em `/api/v1/arquivos`.",
+            "description": "URL de anexo enviado em `/api/v1/conversas/{conversa_id}/anexos`.",
             "examples": [
-              "/api/v1/arquivos/anexo/a1b2c3d4e5f60718293a4b5c6d7e8f90.png"
+              "/api/v1/conversas/1/anexos/a1b2c3d4e5f60718293a4b5c6d7e8f90.png"
             ],
             "title": "Anexo Url"
           },
@@ -802,6 +949,14 @@
         ],
         "title": "MensagemResumo",
         "type": "object"
+      },
+      "OrigemDenuncia": {
+        "enum": [
+          "usuario",
+          "automatica"
+        ],
+        "title": "OrigemDenuncia",
+        "type": "string"
       },
       "PagamentoDetalhe": {
         "description": "Estado da cobrança Pix de uma vaga, com a divisão prevista e o livro de lançamentos.",
@@ -1795,6 +1950,81 @@
         ]
       }
     },
+    "/api/v1/admin/denuncias": {
+      "get": {
+        "description": "Lista denúncias registradas no sistema (incluindo automáticas no chat).",
+        "operationId": "admin_listar_denuncias",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "estado",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EstadoDenuncia"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          },
+          {
+            "in": "query",
+            "name": "origem",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/OrigemDenuncia"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Origem"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DenunciaAdminResumo"
+                  },
+                  "title": "Response Admin Listar Denuncias",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Denuncias",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/prazos/varrer": {
       "post": {
         "description": "Força a verificação imediata de tudo que depende de prazo (expirações e liberações).",
@@ -2245,6 +2475,119 @@
           }
         ],
         "summary": "Detalhar Conversa",
+        "tags": [
+          "conversas"
+        ]
+      }
+    },
+    "/api/v1/conversas/{conversa_id}/anexos": {
+      "post": {
+        "description": "Recebe um anexo (JPG, PNG ou PDF), cria a mensagem no chat e transmite em tempo real.",
+        "operationId": "conversas_enviar_anexo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversa_id",
+            "required": true,
+            "schema": {
+              "title": "Conversa Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_conversas_enviar_anexo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensagemDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Enviar Anexo",
+        "tags": [
+          "conversas"
+        ]
+      }
+    },
+    "/api/v1/conversas/{conversa_id}/anexos/{nome}": {
+      "get": {
+        "description": "Entrega o conteúdo de um anexo do chat somente para os participantes da conversa.",
+        "operationId": "conversas_baixar_anexo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversa_id",
+            "required": true,
+            "schema": {
+              "title": "Conversa Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "nome",
+            "required": true,
+            "schema": {
+              "title": "Nome",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Baixar Anexo",
         "tags": [
           "conversas"
         ]

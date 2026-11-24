@@ -14,8 +14,12 @@ from typing import Literal
 from fastapi import (
     APIRouter,
     Depends,
+    File,
+    Form,
     HTTPException,
     Query,
+    Response,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
     status,
@@ -113,6 +117,56 @@ async def enviar_mensagem(
         detalhe.model_dump(mode="json"),
     )
     return detalhe
+
+
+@router.post(
+    "/conversas/{conversa_id}/anexos",
+    response_model=MensagemDetalhe,
+    status_code=status.HTTP_201_CREATED,
+)
+async def enviar_anexo(
+    conversa_id: int,
+    arquivo: UploadFile = File(..., description="Imagem JPG/PNG ou PDF até 10 MB."),
+    texto: str | None = Form(default=None, max_length=4000, description="Legenda opcional."),
+    usuario: Usuario = Depends(usuario_atual),
+    db: Session = Depends(get_db),
+) -> MensagemDetalhe:
+    """Recebe um anexo (JPG, PNG ou PDF), cria a mensagem no chat e transmite em tempo real."""
+    conversa, vaga = conversas.exigir_participante(db, conversa_id, usuario)
+    mensagem = conversas.registrar_mensagem_com_anexo(
+        db,
+        conversa,
+        vaga,
+        usuario,
+        fluxo=arquivo.file,
+        texto=texto,
+    )
+    detalhe = conversas.montar_mensagem(mensagem)
+    await gerenciador_conexoes.transmitir(
+        conversa.id,
+        detalhe.model_dump(mode="json"),
+    )
+    return detalhe
+
+
+@router.get("/conversas/{conversa_id}/anexos/{nome}")
+def baixar_anexo(
+    conversa_id: int,
+    nome: str,
+    usuario: Usuario = Depends(usuario_atual),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Entrega o conteúdo de um anexo do chat somente para os participantes da conversa."""
+    conversas.exigir_participante(db, conversa_id, usuario)
+    conteudo, media_type = conversas.ler_anexo_chat(conversa_id, nome)
+    return Response(
+        content=conteudo,
+        media_type=media_type,
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": f'inline; filename="{nome}"',
+        },
+    )
 
 
 @router.post("/conversas/{conversa_id}/visto", response_model=ResultadoVisto)
@@ -294,13 +348,15 @@ async def websocket_conversa(
 
             if erro_envio is not None:
                 detalhe_erro = erro_envio.detail if isinstance(erro_envio.detail, dict) else {}
-                await websocket.send_json(
-                    {
-                        "tipo": "erro",
-                        "codigo": detalhe_erro.get("codigo", "erro_ao_enviar"),
-                        "mensagem": detalhe_erro.get("mensagem", "Não foi possível enviar."),
-                    }
-                )
+                aviso: dict[str, object] = {
+                    "tipo": "erro",
+                    "codigo": detalhe_erro.get("codigo", "erro_ao_enviar"),
+                    "mensagem": detalhe_erro.get("mensagem", "Não foi possível enviar."),
+                }
+                for campo_extra in ("tentativas", "denuncia_aberta", "vaga_estado"):
+                    if campo_extra in detalhe_erro:
+                        aviso[campo_extra] = detalhe_erro[campo_extra]
+                await websocket.send_json(aviso)
                 continue
 
             if carga is not None:
