@@ -1269,6 +1269,57 @@
         "title": "DenunciaPublicaResumo",
         "type": "object"
       },
+      "DisponibilidadeProfissional": {
+        "properties": {
+          "bloqueios": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Bloqueios",
+            "type": "array"
+          },
+          "disponivel_agora": {
+            "title": "Disponivel Agora",
+            "type": "boolean"
+          },
+          "disponivel_ate": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disponivel Ate"
+          },
+          "raio_km": {
+            "title": "Raio Km",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "disponivel_agora",
+          "raio_km"
+        ],
+        "title": "DisponibilidadeProfissional",
+        "type": "object"
+      },
+      "DisponivelAgoraEntrada": {
+        "properties": {
+          "ativo": {
+            "title": "Ativo",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ativo"
+        ],
+        "title": "DisponivelAgoraEntrada",
+        "type": "object"
+      },
       "DisputaAdminDetalhe": {
         "description": "Visão completa da aba de disputas no admin: disputa, pagamento, chat e anexos da vaga.",
         "examples": [
@@ -2603,6 +2654,20 @@
           "estado"
         ],
         "title": "ProfissionalRecomendado",
+        "type": "object"
+      },
+      "RaioEntrada": {
+        "properties": {
+          "raio_km": {
+            "minimum": 1.0,
+            "title": "Raio Km",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "raio_km"
+        ],
+        "title": "RaioEntrada",
         "type": "object"
       },
       "RegistroEntrada": {
@@ -4991,6 +5056,127 @@
         "summary": "Listar Convites Do Profissional",
         "tags": [
           "vagas"
+        ]
+      }
+    },
+    "/api/v1/profissional/disponibilidade": {
+      "get": {
+        "description": "Situação atual do modo Disponível agora e do raio de busca.",
+        "operationId": "profissional_consultar_disponibilidade",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisponibilidadeProfissional"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Consultar Disponibilidade",
+        "tags": [
+          "profissional"
+        ]
+      }
+    },
+    "/api/v1/profissional/disponivel-agora": {
+      "post": {
+        "description": "Liga o modo Disponível agora pela duração configurada, ou desliga.",
+        "operationId": "profissional_alternar_disponivel_agora",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisponivelAgoraEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisponibilidadeProfissional"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Alternar Disponivel Agora",
+        "tags": [
+          "profissional"
+        ]
+      }
+    },
+    "/api/v1/profissional/raio": {
+      "patch": {
+        "description": "Salva o raio de busca do mapa, limitado ao máximo configurado.",
+        "operationId": "profissional_atualizar_raio",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RaioEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisponibilidadeProfissional"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Atualizar Raio",
+        "tags": [
+          "profissional"
         ]
       }
     },

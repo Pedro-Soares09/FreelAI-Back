@@ -11,6 +11,7 @@ from app.api.v1 import (
     disputas,
     notificacoes,
     pagamentos,
+    profissional,
     saude,
     stubs,
     vagas,
@@ -29,6 +30,7 @@ api_router.include_router(denuncias.router)
 api_router.include_router(disputas.router)
 api_router.include_router(notificacoes.router)
 api_router.include_router(pagamentos.router)
+api_router.include_router(profissional.router)
 api_router.include_router(vagas.router)
 api_router.include_router(acordo.router)
 api_router.include_router(stubs.router)
