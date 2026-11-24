@@ -37,6 +37,212 @@
         "title": "AceitesAcordo",
         "type": "object"
       },
+      "AvaliacaoDetalhe": {
+        "description": "Avaliação registrada. Só fica visível quando ambos avaliam ou o prazo de 48h encerra.",
+        "examples": [
+          {
+            "avaliado_id": 7,
+            "avaliador_id": 3,
+            "comentario": "Pontual e cuidadoso.",
+            "criado_em": "2026-11-20T18:30:00Z",
+            "id": 15,
+            "nota": 5,
+            "vaga_id": 42,
+            "visivel": true,
+            "visivel_em": "2026-11-20T19:00:00Z"
+          }
+        ],
+        "properties": {
+          "avaliado_id": {
+            "title": "Avaliado Id",
+            "type": "integer"
+          },
+          "avaliador_id": {
+            "title": "Avaliador Id",
+            "type": "integer"
+          },
+          "comentario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comentario"
+          },
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "nota": {
+            "title": "Nota",
+            "type": "integer"
+          },
+          "vaga_id": {
+            "title": "Vaga Id",
+            "type": "integer"
+          },
+          "visivel": {
+            "description": "Verdadeiro quando ambos já avaliaram ou o prazo de 48h encerrou.",
+            "title": "Visivel",
+            "type": "boolean"
+          },
+          "visivel_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visivel Em"
+          }
+        },
+        "required": [
+          "id",
+          "vaga_id",
+          "avaliador_id",
+          "avaliado_id",
+          "nota",
+          "criado_em",
+          "visivel"
+        ],
+        "title": "AvaliacaoDetalhe",
+        "type": "object"
+      },
+      "AvaliacaoEntrada": {
+        "description": "Nota de 1 a 5 e comentário opcional enviados por um participante após a conclusão.",
+        "properties": {
+          "comentario": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Comentário sobre o serviço prestado ou contratado.",
+            "examples": [
+              "Pontual e cuidadoso."
+            ],
+            "title": "Comentario"
+          },
+          "nota": {
+            "description": "Nota de 1 a 5 atribuída à outra parte.",
+            "examples": [
+              5
+            ],
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Nota",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nota"
+        ],
+        "title": "AvaliacaoEntrada",
+        "type": "object"
+      },
+      "AvaliacoesDaVaga": {
+        "description": "Estado das avaliações de uma vaga para quem consulta.",
+        "examples": [
+          {
+            "avaliacao_recebida": {
+              "avaliado_id": 3,
+              "avaliador_id": 7,
+              "comentario": "Contratante claro e organizado.",
+              "criado_em": "2026-11-20T19:00:00Z",
+              "id": 16,
+              "nota": 5,
+              "vaga_id": 42,
+              "visivel": true,
+              "visivel_em": "2026-11-20T19:00:00Z"
+            },
+            "avaliacoes": [],
+            "minha_avaliacao": {
+              "avaliado_id": 7,
+              "avaliador_id": 3,
+              "comentario": "Pontual e cuidadoso.",
+              "criado_em": "2026-11-20T18:30:00Z",
+              "id": 15,
+              "nota": 5,
+              "vaga_id": 42,
+              "visivel": true,
+              "visivel_em": "2026-11-20T19:00:00Z"
+            },
+            "prazo_em": "2026-11-22T17:00:00Z",
+            "reveladas": true,
+            "vaga_id": 42
+          }
+        ],
+        "properties": {
+          "avaliacao_recebida": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AvaliacaoDetalhe"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Avaliação da outra parte; permanece nula enquanto ainda estiver oculta."
+          },
+          "avaliacoes": {
+            "description": "Avaliações já visíveis publicamente desta vaga.",
+            "items": {
+              "$ref": "#/components/schemas/AvaliacaoDetalhe"
+            },
+            "title": "Avaliacoes",
+            "type": "array"
+          },
+          "minha_avaliacao": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AvaliacaoDetalhe"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Avaliação feita pelo próprio usuário que consulta (quando autenticada)."
+          },
+          "prazo_em": {
+            "description": "Fim da janela de 48h para avaliar.",
+            "format": "date-time",
+            "title": "Prazo Em",
+            "type": "string"
+          },
+          "reveladas": {
+            "description": "Verdadeiro quando ambos já avaliaram ou o prazo de 48h encerrou.",
+            "title": "Reveladas",
+            "type": "boolean"
+          },
+          "vaga_id": {
+            "title": "Vaga Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "vaga_id",
+          "prazo_em",
+          "reveladas",
+          "avaliacoes"
+        ],
+        "title": "AvaliacoesDaVaga",
+        "type": "object"
+      },
       "Body_conversas_enviar_anexo": {
         "properties": {
           "arquivo": {
@@ -1441,6 +1647,113 @@
           "refresh_token"
         ],
         "title": "RenovacaoEntrada",
+        "type": "object"
+      },
+      "ReputacaoDetalhe": {
+        "description": "Reputação 70/20/10 de um usuário, detalhando cada componente e o selo Novo.",
+        "examples": [
+          {
+            "amostra_compromissos": 20,
+            "cancelamentos_tardios_ultimos_20": 1,
+            "denuncias_procedentes": 1,
+            "media_considerada": 4.5,
+            "nota_cancelamentos": 4.75,
+            "nota_denuncias": 3.0,
+            "nota_media": 4.5,
+            "novo": true,
+            "reputacao": 4.4,
+            "servicos_concluidos": 4,
+            "taxa_cancelamento_tardio": 0.05,
+            "total_avaliacoes": 4,
+            "usuario_id": 7
+          }
+        ],
+        "properties": {
+          "amostra_compromissos": {
+            "description": "Quantidade de compromissos considerados na janela (máximo 20).",
+            "title": "Amostra Compromissos",
+            "type": "integer"
+          },
+          "cancelamentos_tardios_ultimos_20": {
+            "title": "Cancelamentos Tardios Ultimos 20",
+            "type": "integer"
+          },
+          "denuncias_procedentes": {
+            "title": "Denuncias Procedentes",
+            "type": "integer"
+          },
+          "media_considerada": {
+            "description": "Média usada na fórmula (4,0 neutra quando não há avaliações visíveis).",
+            "title": "Media Considerada",
+            "type": "number"
+          },
+          "nota_cancelamentos": {
+            "description": "Parcela de cancelamentos (0 a 5): 5 * (1 - taxa_cancelamento_tardio).",
+            "title": "Nota Cancelamentos",
+            "type": "number"
+          },
+          "nota_denuncias": {
+            "description": "Parcela de denúncias (0 a 5): max(0, 5 - 2 * denuncias_procedentes).",
+            "title": "Nota Denuncias",
+            "type": "number"
+          },
+          "nota_media": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Média real das avaliações visíveis, ou nulo quando ainda não há avaliações.",
+            "title": "Nota Media"
+          },
+          "novo": {
+            "description": "Exibe o selo Novo enquanto tiver até 5 serviços concluídos; cai no 6º.",
+            "title": "Novo",
+            "type": "boolean"
+          },
+          "reputacao": {
+            "description": "Nota final de 0 a 5 pela fórmula 70/20/10.",
+            "title": "Reputacao",
+            "type": "number"
+          },
+          "servicos_concluidos": {
+            "description": "Serviços concluídos como profissional (0 quando não possui perfil).",
+            "title": "Servicos Concluidos",
+            "type": "integer"
+          },
+          "taxa_cancelamento_tardio": {
+            "description": "Proporção (0 a 1) de cancelamentos tardios nos últimos 20 compromissos.",
+            "title": "Taxa Cancelamento Tardio",
+            "type": "number"
+          },
+          "total_avaliacoes": {
+            "description": "Quantidade de avaliações visíveis recebidas.",
+            "title": "Total Avaliacoes",
+            "type": "integer"
+          },
+          "usuario_id": {
+            "title": "Usuario Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "usuario_id",
+          "reputacao",
+          "media_considerada",
+          "total_avaliacoes",
+          "nota_cancelamentos",
+          "taxa_cancelamento_tardio",
+          "cancelamentos_tardios_ultimos_20",
+          "amostra_compromissos",
+          "nota_denuncias",
+          "denuncias_procedentes",
+          "servicos_concluidos",
+          "novo"
+        ],
+        "title": "ReputacaoDetalhe",
         "type": "object"
       },
       "RespostaSaude": {
@@ -3029,6 +3342,96 @@
         ]
       }
     },
+    "/api/v1/usuarios/{usuario_id}/avaliacoes": {
+      "get": {
+        "description": "Avaliações já visíveis recebidas pelo usuário.",
+        "operationId": "avaliacoes_listar_avaliacoes_do_usuario",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "usuario_id",
+            "required": true,
+            "schema": {
+              "title": "Usuario Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AvaliacaoDetalhe"
+                  },
+                  "title": "Response Avaliacoes Listar Avaliacoes Do Usuario",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listar Avaliacoes Do Usuario",
+        "tags": [
+          "avaliacoes"
+        ]
+      }
+    },
+    "/api/v1/usuarios/{usuario_id}/reputacao": {
+      "get": {
+        "description": "Cálculo da reputação 70/20/10 e estado do selo Novo (até 5 serviços concluídos).",
+        "operationId": "avaliacoes_consultar_reputacao_do_usuario",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "usuario_id",
+            "required": true,
+            "schema": {
+              "title": "Usuario Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReputacaoDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consultar Reputacao Do Usuario",
+        "tags": [
+          "avaliacoes"
+        ]
+      }
+    },
     "/api/v1/vagas": {
       "post": {
         "description": "Publica uma vaga e já gera a primeira rodada do top 3.",
@@ -3252,6 +3655,110 @@
         "summary": "Consultar Acordo",
         "tags": [
           "vagas"
+        ]
+      }
+    },
+    "/api/v1/vagas/{vaga_id}/avaliacoes": {
+      "get": {
+        "description": "Avaliações da vaga. A nota do outro lado fica oculta até ambos avaliarem ou o prazo.",
+        "operationId": "avaliacoes_consultar_avaliacoes_da_vaga",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvaliacoesDaVaga"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Consultar Avaliacoes Da Vaga",
+        "tags": [
+          "avaliacoes"
+        ]
+      },
+      "post": {
+        "description": "Registra a avaliação mútua (1 a 5 e comentário) dentro das 48h após a conclusão.",
+        "operationId": "avaliacoes_avaliar_vaga",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AvaliacaoEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvaliacaoDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Avaliar Vaga",
+        "tags": [
+          "avaliacoes"
         ]
       }
     },
