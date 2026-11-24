@@ -4,7 +4,8 @@ import pytest
 
 from app.config import settings
 from app.models import Convite, EstadoConvite, EstadoVaga, TipoPerfil, Vaga
-from app.tempo import fixar_relogio
+from app.services import match
+from app.tempo import avancar_relogio, fixar_relogio
 from tests.fabricas import (
     cabecalho,
     criar_categoria,
@@ -256,3 +257,58 @@ def test_rotas_exigem_token(cliente):
     assert cliente.get("/api/v1/vagas/1").status_code == 401
     assert cliente.get("/api/v1/contratante/top3").status_code == 401
     assert cliente.get("/api/v1/categorias").status_code == 401
+
+
+def test_interesse_fora_do_top3_devolve_403(cliente, db, contratante, categoria):
+    vaga = _publicar(cliente, contratante, categoria)
+    de_fora = criar_profissional(db, categorias=())
+
+    resposta = cliente.post(
+        f"/api/v1/vagas/{vaga['id']}/interesse",
+        json={"valor_proposto": 160},
+        headers=cabecalho(de_fora.usuario),
+    )
+
+    assert resposta.status_code == 403
+    assert resposta.json()["detail"]["codigo"] == "fora_do_top3"
+
+
+def test_segunda_contraproposta_e_barrada(cliente, db, contratante, categoria):
+    profissional = criar_profissional(db, categorias=(categoria,))
+    vaga = _publicar(cliente, contratante, categoria)
+    url = f"/api/v1/vagas/{vaga['id']}/interesse"
+
+    primeira = cliente.post(
+        url, json={"valor_proposto": 160}, headers=cabecalho(profissional.usuario)
+    )
+    segunda = cliente.post(
+        url, json={"valor_proposto": 170}, headers=cabecalho(profissional.usuario)
+    )
+
+    assert primeira.status_code == 200
+    assert segunda.status_code == 409
+    assert segunda.json()["detail"]["codigo"] == "interesse_ja_registrado"
+
+
+def test_varredura_expira_convite_escolhido_vencido(cliente, db, contratante, categoria):
+    profissional = criar_profissional(db, categorias=(categoria,))
+    vaga = _publicar(cliente, contratante, categoria)
+    cliente.post(
+        f"/api/v1/vagas/{vaga['id']}/interesse",
+        json={},
+        headers=cabecalho(profissional.usuario),
+    )
+    cliente.post(
+        f"/api/v1/contratante/vagas/{vaga['id']}/escolher",
+        json={"profissional_id": str(profissional.id)},
+        headers=cabecalho(contratante),
+    )
+    assert match.expirar_convites_vencidos(db) == 0
+
+    avancar_relogio(timedelta(hours=2))
+    assert match.expirar_convites_vencidos(db) == 1
+
+    db.expire_all()
+    assert db.get(Vaga, int(vaga["id"])).estado == EstadoVaga.PUBLICADA
+    convites = cliente.get("/api/v1/profissional/convites", headers=cabecalho(profissional.usuario))
+    assert convites.json() == []

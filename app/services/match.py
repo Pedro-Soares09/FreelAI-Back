@@ -36,6 +36,7 @@ from app.models import (
 )
 from app.services import configuracao, notificacoes
 from app.services.geo import caixa_para_raio, distancia_km
+from app.services.varreduras import varredura
 from app.tempo import agora, como_utc
 
 # Estados em que a agenda do profissional está comprometida com outra vaga.
@@ -425,3 +426,26 @@ def gerar_rodada(db: Session, vaga: Vaga) -> list[Convite]:
         db.refresh(convite)
     notificacoes.notificar_selecionados_top3(db, vaga, convites)
     return convites
+
+
+@varredura("expiracao_convites")
+def expirar_convites_vencidos(db: Session) -> int:
+    """Expira convites escolhidos cujo prazo de aceite acabou e reabre a vaga para o match."""
+    vencidos = db.scalars(
+        select(Convite).where(
+            Convite.estado == EstadoConvite.ESCOLHIDO,
+            Convite.expira_em.is_not(None),
+            Convite.expira_em <= agora(),
+        )
+    ).all()
+    for convite in vencidos:
+        convite.estado = EstadoConvite.EXPIRADO
+        vaga = db.get(Vaga, convite.vaga_id)
+        if vaga.estado == EstadoVaga.AGUARDANDO_ACEITE:
+            vaga.estado = EstadoVaga.PUBLICADA
+            vaga.prazo_em = agora() + timedelta(
+                minutes=configuracao.get("expiracao_vaga_min", db=db)
+            )
+    if vencidos:
+        db.commit()
+    return len(vencidos)

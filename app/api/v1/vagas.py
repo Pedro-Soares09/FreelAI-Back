@@ -346,7 +346,19 @@ def manifestar_interesse(
         .where(Convite.vaga_id == vaga.id, Convite.profissional_id == perfil.id)
         .order_by(Convite.rodada.desc())
     ).first()
-    if convite is None or convite.estado != EstadoConvite.SUGERIDO:
+    if convite is None:
+        raise erro_http(
+            status.HTTP_403_FORBIDDEN,
+            "fora_do_top3",
+            "Esta vaga não está entre as sugeridas para o seu perfil.",
+        )
+    if convite.estado == EstadoConvite.INTERESSADO:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "interesse_ja_registrado",
+            "Você já demonstrou interesse nesta vaga; só é permitida uma contraproposta.",
+        )
+    if convite.estado != EstadoConvite.SUGERIDO:
         raise erro_http(
             status.HTTP_409_CONFLICT,
             "interesse_indisponivel",
