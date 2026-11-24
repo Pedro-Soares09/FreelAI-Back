@@ -43,12 +43,17 @@ def main() -> None:
     if arquivo.exists():
         arquivo.unlink()
     _executar([sys.executable, "-m", "alembic", "upgrade", "head"], ambiente)
+    # Primeiro as categorias, o checklist, as contas administrativas e o conjunto de dados
+    # variados; depois as contas curtas da jornada integrada.
+    _executar([sys.executable, "-m", "app.seed"], ambiente)
     _executar([sys.executable, "scripts/semear_demo.py"], ambiente)
 
     print(f"\nBanco da demonstração pronto em {arquivo}")
-    print("Contas (senha senha-segura-123): maria@example.com (contratante),")
+    print("Contas da jornada (senha senha-segura-123): maria@example.com (contratante),")
     print("ana@example.com e carlos, bruna, diego, elisa @example.com (profissionais),")
     print("admin@example.com (admin).")
+    print("Dados variados (senha FreelAI@2026!): admin@freelai.local, profissional01 a 20 e")
+    print("contratante01 a 05, todos @freelai.local.")
 
     if argumentos.servir:
         _executar(

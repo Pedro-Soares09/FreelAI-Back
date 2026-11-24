@@ -402,6 +402,11 @@ Usa o `scripts/semear_demo.py` (contas e vagas da jornada integrada). O banco é
 recriado a cada execução, o que também serve para repetir a demonstração depois que as janelas
 de aceite e de pagamento (minutos no perfil `demo`) vencerem.
 
+O passo a passo da apresentação, com contas, tempos e cuidados, está em
+`docs/roteiro-da-demonstracao.md`. Para fazer o serviço de uma vaga terminar agora (e mostrar
+conclusão, avaliação e disputa dentro das janelas curtas do perfil `demo`), use
+`python scripts/avancar_servico.py <id da vaga>`.
+
 ### Credenciais de demonstração
 
 Todas as contas criadas pelo seed utilizam a mesma senha:
