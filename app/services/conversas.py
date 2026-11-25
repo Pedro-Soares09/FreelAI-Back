@@ -303,6 +303,7 @@ def _montar_perfil_resumo(
     foto_url: str | None = None
     verificado = False
     novo = False
+    cor_destaque: str | None = None
 
     if lado == "profissional" and usuario is not None and usuario.perfil_profissional is not None:
         perfil_prof = usuario.perfil_profissional
@@ -312,7 +313,9 @@ def _montar_perfil_resumo(
     elif lado == "contratante" and usuario is not None and usuario.perfil_contratante is not None:
         perfil_cont = usuario.perfil_contratante
         verificado = perfil_cont.verificado
-        if usuario.perfil_profissional is not None:
+        cor_destaque = perfil_cont.cor_destaque
+        foto_url = perfil_cont.avatar_url
+        if foto_url is None and usuario.perfil_profissional is not None:
             foto_url = usuario.perfil_profissional.foto_url
 
     instante = agora()
@@ -325,9 +328,7 @@ def _montar_perfil_resumo(
     ).one()
 
     destaque = (
-        comprovantes.destaque_do_contratante(db, usuario_id)
-        if lado == "contratante"
-        else None
+        comprovantes.destaque_do_contratante(db, usuario_id) if lado == "contratante" else None
     )
     return PerfilResumo(
         usuario_id=usuario_id,
@@ -340,6 +341,7 @@ def _montar_perfil_resumo(
         total_avaliacoes=int(total or 0),
         adicionais_pagos=destaque.adicionais_pagos if destaque else 0,
         destaque=destaque.destaque if destaque else False,
+        cor_destaque=cor_destaque,
     )
 
 

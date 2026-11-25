@@ -14,6 +14,7 @@ NivelRisco = Literal["baixo", "medio", "alto"]
 
 class ContratanteResumo(BaseModel):
     id: str
+    usuario_id: int | None = None
     nome: str
     foto_url: str | None = None
     verificado: bool
@@ -22,6 +23,7 @@ class ContratanteResumo(BaseModel):
     pro: bool = False
     adicionais_pagos: int = 0
     destaque: bool = False
+    cor_destaque: str | None = None
 
 
 class ConviteVaga(BaseModel):

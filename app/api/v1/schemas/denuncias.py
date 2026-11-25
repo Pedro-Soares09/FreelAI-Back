@@ -102,7 +102,9 @@ class DenunciaFilaAdmin(BaseModel):
         default=None,
         description="Autor da denúncia (nulo quando gerada automaticamente pelo chat).",
     )
+    denunciante_nome: str | None = None
     denunciado_id: int
+    denunciado_nome: str | None = None
     vaga_id: int | None = None
     conversa_id: int | None = None
     origem: OrigemDenuncia
