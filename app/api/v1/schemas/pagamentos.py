@@ -115,3 +115,17 @@ class ValidacaoFacialEntrada(BaseModel):
         description="Imagem enviada para o reconhecimento; opcional na simulação.",
         examples=["https://arquivos.exemplo/selfies/42.jpg"],
     )
+
+
+class CheckinEntrada(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    simular_local: bool = Field(
+        default=False, description="Só no perfil demo: usa o endereço da vaga como posição."
+    )
+
+
+class CheckinResposta(BaseModel):
+    mensagem: str
+    distancia_metros: float
+    checkin_em: datetime

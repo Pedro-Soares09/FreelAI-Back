@@ -189,6 +189,8 @@ def _vaga_para_front(
         status=STATUS_VAGA[vaga.estado],
         contratante=_resumo_contratante(db, contratante),
         meu_convite=_convite_para_front(convite) if convite else None,
+        checkin_realizado_em=como_utc(vaga.checkin_em) if vaga.checkin_em else None,
+        falta_registrada=vaga.estado == EstadoVaga.FALTA,
     )
 
 

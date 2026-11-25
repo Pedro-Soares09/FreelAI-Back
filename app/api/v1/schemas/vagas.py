@@ -53,6 +53,8 @@ class VagaDetalhe(BaseModel):
     status: str
     contratante: ContratanteResumo
     meu_convite: ConviteVaga | None = None
+    checkin_realizado_em: datetime | None = None
+    falta_registrada: bool = False
 
 
 class RespostaChecklist(BaseModel):

@@ -65,6 +65,7 @@ class Vaga(MarcaTempo, Base):
     prazo_em: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
+    checkin_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     convites: Mapped[list["Convite"]] = relationship(back_populates="vaga")
 
