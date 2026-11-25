@@ -50,6 +50,14 @@ def cliente(engine):
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True, scope="session")
+def custo_de_hash_reduzido():
+    """Reduz o custo do bcrypt só na suíte: cada conta criada nos testes gerava um hash lento."""
+    from app.security import password_context
+
+    password_context.update(bcrypt__rounds=4)
+
+
 @pytest.fixture(autouse=True)
 def pasta_uploads_isolada(tmp_path, monkeypatch):
     """Direciona os uploads de cada teste para um diretório temporário descartado ao fim."""
