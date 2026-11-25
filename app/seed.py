@@ -1,5 +1,7 @@
 """Dados fictícios de demonstração. Execute com: python -m app.seed"""
 
+import os
+import secrets
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -35,6 +37,16 @@ from app.services.configuracao import semear_configuracoes
 from app.tempo import agora
 
 SENHA_SEED = "FreelAI@2026!"
+
+
+def senha_admin_demo() -> str:
+    """Senha do administrador de demonstração, lida de SENHA_ADMIN_DEMO.
+
+    Sem a variável a senha é aleatória e não é exibida em lugar nenhum, então nenhuma conta
+    administrativa nasce com senha conhecida. Só vale na criação da conta.
+    """
+    return os.environ.get("SENHA_ADMIN_DEMO") or secrets.token_urlsafe(24)
+
 
 # slug, nome, risco, exige qualificação, exige EPI, EPIs, checklist (texto, crítico)
 CATEGORIAS = [
@@ -214,14 +226,16 @@ def _cpf(numero_base: int) -> str:
     return base + primeiro + digito(base + primeiro, range(11, 1, -1))
 
 
-def _usuario(db: Session, nome: str, email: str, papel=PapelUsuario.USUARIO) -> Usuario:
+def _usuario(
+    db: Session, nome: str, email: str, papel=PapelUsuario.USUARIO, senha: str | None = None
+) -> Usuario:
+    """Cria ou atualiza a conta; a senha só é definida na criação, nunca redefinida."""
     usuario = db.scalar(select(Usuario).where(Usuario.email == email))
     if usuario is None:
-        usuario = Usuario(nome=nome, email=email, senha_hash=hash_password(SENHA_SEED))
+        usuario = Usuario(nome=nome, email=email, senha_hash=hash_password(senha or SENHA_SEED))
         db.add(usuario)
         db.flush()
     usuario.nome = nome
-    usuario.senha_hash = hash_password(SENHA_SEED)
     usuario.estado = EstadoConta.ATIVA
     usuario.papel = papel
     return usuario
@@ -446,7 +460,13 @@ def semear_vagas(
 
 def semear(db: Session) -> None:
     semear_configuracoes(db)
-    _usuario(db, "Administrador FreelAI", "admin@freelai.local", PapelUsuario.ADMIN)
+    _usuario(
+        db,
+        "Administrador FreelAI",
+        "admin@freelai.local",
+        PapelUsuario.ADMIN,
+        senha=senha_admin_demo(),
+    )
     categorias = semear_categorias(db)
     profissionais = semear_profissionais(db, categorias)
     contratantes = semear_contratantes(db)
@@ -467,8 +487,8 @@ def main() -> int:
     finally:
         db.close()
     print("Seed do FreelAI concluído.")
-    print(f"Senha de todas as contas: {SENHA_SEED}")
-    print("Admin: admin@freelai.local")
+    print(f"Senha das contas de profissionais e contratantes: {SENHA_SEED}")
+    print("Admin: admin@freelai.local (senha definida em SENHA_ADMIN_DEMO)")
     print("Profissionais: profissional01@freelai.local até profissional20@freelai.local")
     print("Contratantes: contratante01@freelai.local até contratante05@freelai.local")
     print("Categorias: montagem, limpeza, eletrica, pintura e jardinagem")

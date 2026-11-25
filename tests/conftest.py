@@ -59,6 +59,14 @@ def custo_de_hash_reduzido():
 
 
 @pytest.fixture(autouse=True)
+def varreduras_automaticas_desligadas(monkeypatch):
+    """O agendador não roda nos testes: as varreduras são chamadas explicitamente."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "varreduras_automaticas", False)
+
+
+@pytest.fixture(autouse=True)
 def pasta_uploads_isolada(tmp_path, monkeypatch):
     """Direciona os uploads de cada teste para um diretório temporário descartado ao fim."""
     from app.config import settings

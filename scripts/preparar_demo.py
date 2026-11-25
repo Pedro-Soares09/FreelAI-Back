@@ -19,6 +19,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
 PORTA_FRONT = "http://localhost:3300"
+SENHA_ADMIN_LOCAL = "senha-segura-123"
 
 
 def _executar(comando: list[str], ambiente: dict[str, str]) -> None:
@@ -38,6 +39,8 @@ def main() -> None:
         "DATABASE_URL": f"sqlite:///{arquivo.as_posix()}",
         "PERFIL": "demo",
         "CORS_ORIGINS": f'["{PORTA_FRONT}"]',
+        # Só para este processo local: o administrador da demonstração local tem senha conhecida.
+        "SENHA_ADMIN_DEMO": os.environ.get("SENHA_ADMIN_DEMO", SENHA_ADMIN_LOCAL),
     }
 
     if arquivo.exists():
@@ -51,9 +54,9 @@ def main() -> None:
     print(f"\nBanco da demonstração pronto em {arquivo}")
     print("Contas da jornada (senha senha-segura-123): maria@example.com (contratante),")
     print("ana@example.com e carlos, bruna, diego, elisa @example.com (profissionais),")
-    print("admin@example.com (admin).")
-    print("Dados variados (senha FreelAI@2026!): admin@freelai.local, profissional01 a 20 e")
-    print("contratante01 a 05, todos @freelai.local.")
+    print(f"admin@example.com e admin@freelai.local (admin, senha {ambiente['SENHA_ADMIN_DEMO']}).")
+    print("Dados variados (senha FreelAI@2026!): profissional01 a 20 e contratante01 a 05,")
+    print("todos @freelai.local.")
 
     if argumentos.servir:
         _executar(

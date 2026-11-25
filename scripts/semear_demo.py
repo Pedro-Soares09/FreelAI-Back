@@ -30,6 +30,7 @@ from app.models.enums import (  # noqa: E402  # noqa: E402
 )
 from app.models.nucleo import PerfilContratante, PerfilProfissional, Usuario  # noqa: E402
 from app.security import hash_password  # noqa: E402
+from app.seed import senha_admin_demo  # noqa: E402
 from app.services import match  # noqa: E402
 
 SENHA_DEMO = "senha-segura-123"
@@ -46,6 +47,7 @@ CONTAS = [
         "email": "admin@example.com",
         "papel": PapelUsuario.ADMIN,
         "perfis": False,
+        "admin": True,
     },
 ]
 
@@ -56,7 +58,7 @@ def _obter_ou_criar(db, dados) -> Usuario:
         usuario = Usuario(
             nome=dados["nome"],
             email=dados["email"],
-            senha_hash=hash_password(SENHA_DEMO),
+            senha_hash=hash_password(senha_admin_demo() if dados.get("admin") else SENHA_DEMO),
         )
         db.add(usuario)
         db.flush()
@@ -269,9 +271,10 @@ def main() -> int:
     finally:
         db.close()
 
-    print(f"Contas de demonstração prontas (senha: {SENHA_DEMO}):")
+    print(f"Contas de demonstração prontas (senha: {SENHA_DEMO}, exceto o administrador):")
     for dados in CONTAS:
         print(f"  {dados['email']} ({dados['papel'].value})")
+    print("  A senha do administrador vem de SENHA_ADMIN_DEMO.")
     print("  maria@example.com (contratante), carlos/bruna/diego/elisa@example.com (profissionais)")
     print("  Moderação: rafael.lima (banido), tiago.alves, patricia.nunes (profissionais)")
     print("             juliana.prado, marcos.teles, helena.duarte, roberto.cunha (contratantes)")

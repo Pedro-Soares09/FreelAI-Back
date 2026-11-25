@@ -409,12 +409,13 @@ conclusão, avaliação e disputa dentro das janelas curtas do perfil `demo`), u
 
 ### Credenciais de demonstração
 
-Todas as contas criadas pelo seed utilizam a mesma senha:
+As contas de profissionais e contratantes criadas pelo seed usam a mesma senha:
 
 **Senha:** `FreelAI@2026!`
 
-**Administrador:**
-- `admin@freelai.local`
+**Administrador:** `admin@freelai.local`. A senha vem da variável de ambiente `SENHA_ADMIN_DEMO`
+(sem ela, a conta nasce com senha aleatória e inacessível). No ambiente local, o comando
+`python scripts/preparar_demo.py` define a variável só para o seu processo e imprime o valor.
 
 **Profissionais:**
 - `profissional01@freelai.local` até `profissional20@freelai.local`

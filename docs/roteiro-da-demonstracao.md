@@ -24,7 +24,7 @@ Regras de negócio alinhadas na reunião de 17/11 e refletidas aqui: o pagamento
    - Profissional: `ana@example.com`
    - Administração: `admin@example.com`
 
-   A senha de todas é `senha-segura-123`. As contas `@freelai.local` (senha `FreelAI@2026!`) trazem dados variados para o painel e a fila, mas não são necessárias para o roteiro.
+   A senha da Maria e da Ana é `senha-segura-123`. A senha da administração é a que o `preparar_demo.py` imprime no resumo (local) ou a variável `SENHA_ADMIN_DEMO` do Render (deploy). As contas `@freelai.local` (senha `FreelAI@2026!`, exceto o admin) trazem dados variados para o painel e a fila, mas não são necessárias para o roteiro.
 
 4. Conferir que `http://localhost:8000/health` responde 200 e que a Maria já vê quatro vagas em "Minhas vagas".
 
