@@ -479,10 +479,14 @@ def expirar_convites_vencidos(db: Session) -> int:
         convite.estado = EstadoConvite.EXPIRADO
         vaga = db.get(Vaga, convite.vaga_id)
         if vaga.estado == EstadoVaga.AGUARDANDO_ACEITE:
-            vaga.estado = EstadoVaga.PUBLICADA
-            vaga.prazo_em = agora() + timedelta(
-                minutes=configuracao.get("expiracao_vaga_min", db=db)
+            from app.services import vagas as vagas_servico
+
+            vagas_servico.transicionar(
+                vaga,
+                vagas_servico.EventoVaga.EXPIRAR_CONVITE,
+                motivo="convite_escolhido_expirado",
             )
+            vaga.prazo_em = vagas_servico.calcular_prazo_publicacao(db, vaga.inicio_em)
     if vencidos:
         db.commit()
     return len(vencidos)

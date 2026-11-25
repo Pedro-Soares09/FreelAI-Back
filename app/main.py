@@ -1,4 +1,6 @@
-﻿import json
+﻿import asyncio
+from contextlib import asynccontextmanager
+import json
 import logging
 import time
 
@@ -49,7 +51,46 @@ def _id_da_operacao(rota: APIRoute) -> str:
     return f"{prefixo}_{rota.name}"
 
 
+INTERVALO_VARREDURA_SEGUNDOS = 30.0
+
+
+def _executar_ciclo_varreduras() -> dict[str, int]:
+    from app.db import SessionLocal
+    from app.services import varreduras
+
+    db = SessionLocal()
+    try:
+        return varreduras.executar_varreduras(db)
+    finally:
+        db.close()
+
+
+async def _loop_varreduras(intervalo: float = INTERVALO_VARREDURA_SEGUNDOS) -> None:
+    while True:
+        await asyncio.sleep(intervalo)
+        try:
+            await asyncio.to_thread(_executar_ciclo_varreduras)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Falha na execucao periodica de varreduras")
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    tarefa = asyncio.create_task(_loop_varreduras())
+    try:
+        yield
+    finally:
+        tarefa.cancel()
+        try:
+            await tarefa
+        except asyncio.CancelledError:
+            pass
+
+
 app = FastAPI(
+    lifespan=_lifespan,
     title="FreelAI Back",
     version="1.0.0",
     description="API do FreelAI: contratantes e profissionais em serviços pontuais.",

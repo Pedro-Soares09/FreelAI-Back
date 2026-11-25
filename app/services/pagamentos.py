@@ -245,7 +245,13 @@ def _expirar(db: Session, pagamento: Pagamento) -> None:
     pagamento.estado = EstadoPagamento.EXPIRADO
     vaga = db.get(Vaga, pagamento.vaga_id)
     if vaga is not None and vaga.estado == EstadoVaga.AGUARDANDO_PAGAMENTO:
-        vaga.estado = EstadoVaga.PUBLICADA
+        from app.services import vagas as vagas_servico
+
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.EXPIRAR_PAGAMENTO,
+            motivo="cobranca_expirada",
+        )
         vaga.profissional_id = None
         _fechar_conversa(db, vaga.id)
 
@@ -345,8 +351,23 @@ def criar_pagamento(db: Session, vaga: Vaga) -> Pagamento:
         )
     existente = pagamento_da_vaga(db, vaga)
     if existente is not None and _cobranca_vencida(existente):
+        profissional_anterior = vaga.profissional_id
         _expirar(db, existente)
-        vaga.estado = EstadoVaga.ACEITA
+        if profissional_anterior is not None and vaga.profissional_id is None:
+            vaga.profissional_id = profissional_anterior
+        if vaga.estado == EstadoVaga.PUBLICADA and vaga.profissional_id is not None:
+            from app.services import vagas as vagas_servico
+
+            vagas_servico.transicionar(
+                vaga,
+                vagas_servico.EventoVaga.INICIAR_CONTRATACAO,
+                motivo="reabertura_cobranca_vencida",
+            )
+            vagas_servico.transicionar(
+                vaga,
+                vagas_servico.EventoVaga.ACEITAR_CONVITE,
+                motivo="reabertura_para_nova_cobranca",
+            )
     if existente is not None and existente.estado != EstadoPagamento.EXPIRADO:
         raise erro_http(
             status.HTTP_409_CONFLICT,
@@ -381,7 +402,14 @@ def criar_pagamento(db: Session, vaga: Vaga) -> Pagamento:
 
     cobranca = obter_gateway().criar_cobranca(pagamento.id, valor, pagamento.expira_em)
     pagamento.codigo_pix = cobranca.codigo_pix
-    vaga.estado = EstadoVaga.AGUARDANDO_PAGAMENTO
+    if vaga.estado == EstadoVaga.ACEITA:
+        from app.services import vagas as vagas_servico
+
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.SOLICITAR_PAGAMENTO,
+            motivo="cobranca_emitida",
+        )
     db.commit()
     db.refresh(pagamento)
     return pagamento
@@ -420,7 +448,14 @@ def reter(db: Session, pagamento: Pagamento) -> Pagamento:
         # Serviço já concluído: o Pix pago é liberado ao profissional na mesma operação.
         db.flush()
         return liberar_integral(db, pagamento)
-    vaga.estado = EstadoVaga.CONTRATADA
+    if vaga.estado in (EstadoVaga.ACEITA, EstadoVaga.AGUARDANDO_PAGAMENTO):
+        from app.services import vagas as vagas_servico
+
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.CONFIRMAR_CONTRATACAO,
+            motivo="pagamento_confirmado_retido",
+        )
     notificacoes.notificar_pagamento_retido(db, vaga, pagamento, commit=False)
     db.commit()
     db.refresh(pagamento)
@@ -439,7 +474,13 @@ def liberar_integral(db: Session, pagamento: Pagamento) -> Pagamento:
     _lancar(db, pagamento, TipoLancamento.LIBERACAO_PROFISSIONAL, liquido, "Liberação integral")
     _lancar(db, pagamento, TipoLancamento.TAXA_PLATAFORMA, taxa, "Taxa da plataforma")
     pagamento.estado = EstadoPagamento.LIBERADO
-    vaga.estado = EstadoVaga.LIBERADA
+    from app.services import vagas as vagas_servico
+
+    vagas_servico.transicionar(
+        vaga,
+        vagas_servico.EventoVaga.LIBERAR_INTEGRAL,
+        motivo="pagamento_liberado_integral",
+    )
     notificacoes.notificar_pagamento_liberado(db, vaga, parcial=False, commit=False)
     _fechar_conversa(db, vaga.id)
     db.commit()
@@ -474,7 +515,13 @@ def liberar_parcial(db: Session, pagamento: Pagamento, percentual: Decimal | int
     _lancar(db, pagamento, TipoLancamento.TAXA_PLATAFORMA, taxa, "Taxa da plataforma")
     _lancar(db, pagamento, TipoLancamento.ESTORNO, estorno, "Estorno parcial ao contratante")
     pagamento.estado = EstadoPagamento.LIBERADO_PARCIAL
-    vaga.estado = EstadoVaga.LIBERADA_PARCIAL
+    from app.services import vagas as vagas_servico
+
+    vagas_servico.transicionar(
+        vaga,
+        vagas_servico.EventoVaga.LIBERAR_PARCIAL,
+        motivo="pagamento_liberado_parcial",
+    )
     notificacoes.notificar_pagamento_liberado(db, vaga, parcial=True, commit=False)
     _fechar_conversa(db, vaga.id)
     db.commit()
@@ -496,7 +543,18 @@ def estornar_integral(
     obter_gateway().estornar(pagamento.codigo_pix or "", total)
     _lancar(db, pagamento, TipoLancamento.ESTORNO, total, "Estorno integral ao contratante")
     pagamento.estado = EstadoPagamento.ESTORNADO
-    vaga.estado = estado_vaga
+    from app.services import vagas as vagas_servico
+
+    _evento_estorno = (
+        vagas_servico.EventoVaga.REGISTRAR_FALTA
+        if estado_vaga == EstadoVaga.FALTA
+        else vagas_servico.EventoVaga.REEMBOLSAR
+    )
+    vagas_servico.transicionar(
+        vaga,
+        _evento_estorno,
+        motivo="pagamento_estornado",
+    )
     _fechar_conversa(db, vaga.id)
     db.commit()
     db.refresh(pagamento)
@@ -542,7 +600,13 @@ def confirmar_conclusao(db: Session, vaga: Vaga, contratante_usuario_id: int) ->
             "A conclusão só pode ser confirmada depois do fim previsto do serviço.",
             fim_em=fim.isoformat(),
         )
-    vaga.estado = EstadoVaga.CONCLUIDA
+    from app.services import vagas as vagas_servico
+
+    vagas_servico.transicionar(
+        vaga,
+        vagas_servico.EventoVaga.CONCLUIR_SERVICO,
+        motivo="conclusao_confirmada_contratante",
+    )
     notificacoes.notificar_avaliacao_pendente(db, vaga, commit=False)
     _incrementar_servicos_concluidos(db, vaga)
     _abrir_cobranca_da_conclusao(db, vaga)
@@ -612,7 +676,13 @@ def registrar_falta(db: Session, vaga: Vaga, *, exigir_tolerancia: bool = True) 
     if pagamento is not None and pagamento.estado == EstadoPagamento.RETIDO:
         estornar_integral(db, pagamento, estado_vaga=EstadoVaga.FALTA)
     else:
-        vaga.estado = EstadoVaga.FALTA
+        from app.services import vagas as vagas_servico
+
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.REGISTRAR_FALTA,
+            motivo="falta_registrada_sem_retencao",
+        )
         _fechar_conversa(db, vaga.id)
         db.commit()
     db.refresh(vaga)
@@ -638,8 +708,14 @@ def _vagas_com_fim_vencido(db: Session, estados, chave_prazo: str) -> list[Vaga]
 def concluir_automaticamente(db: Session) -> int:
     """Conclui vagas sem resposta do contratante dentro do prazo após o fim do serviço."""
     vencidas = _vagas_com_fim_vencido(db, ESTADOS_CONCLUIVEIS, "confirmacao_conclusao_min")
+    from app.services import vagas as vagas_servico
+
     for vaga in vencidas:
-        vaga.estado = EstadoVaga.CONCLUIDA
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.CONCLUIR_SERVICO,
+            motivo="conclusao_automatica_prazo_vencido",
+        )
         notificacoes.notificar_avaliacao_pendente(db, vaga, commit=False)
         _incrementar_servicos_concluidos(db, vaga)
         _abrir_cobranca_da_conclusao(db, vaga)

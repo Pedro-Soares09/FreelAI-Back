@@ -188,7 +188,9 @@ def abrir_disputa(
         descricao=descricao.strip(),
         estado=EstadoDisputa.ABERTA,
     )
-    vaga.estado = EstadoVaga.EM_DISPUTA
+    from app.services import vagas as vagas_servico
+
+    vagas_servico.transicionar(vaga, vagas_servico.EventoVaga.ABRIR_DISPUTA, motivo="disputa_aberta")
     db.add(disputa)
     try:
         db.commit()
@@ -344,7 +346,13 @@ def _decidir_sem_pagamento(
         disputa.estado = EstadoDisputa.REEMBOLSO_TOTAL
         disputa.percentual_reembolso = 100
         pagamento.estado = EstadoPagamento.EXPIRADO
-        vaga.estado = EstadoVaga.REEMBOLSADA
+        from app.services import vagas as vagas_servico
+
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.REEMBOLSAR,
+            motivo="disputa_reembolso_total",
+        )
         db.commit()
         return
     if entrada.decisao == EstadoDisputa.REEMBOLSO_PARCIAL.value:
@@ -357,7 +365,13 @@ def _decidir_sem_pagamento(
         disputa.percentual_reembolso = 0
         devido = _valor_devido(pagamento, 100)
     # O serviço volta a concluído e o contratante paga o valor decidido.
-    vaga.estado = EstadoVaga.CONCLUIDA
+    from app.services import vagas as vagas_servico
+
+    vagas_servico.transicionar(
+        vaga,
+        vagas_servico.EventoVaga.RETORNAR_CONCLUIDA_APOS_DISPUTA,
+        motivo="disputa_resolvida_para_conclusao",
+    )
     pagamentos.emitir_cobranca(db, vaga, valor=devido, renovar=True)
     db.commit()
 

@@ -190,6 +190,12 @@ def aceitar_acordo(
         db.refresh(contrato)
     if {a.perfil for a in contrato.aceites} == {TipoPerfil.CONTRATANTE, TipoPerfil.PROFISSIONAL}:
         # Com as duas partes de acordo o serviço está contratado; o pagamento vem depois.
-        vaga.estado = EstadoVaga.CONTRATADA
+        from app.services import vagas as vagas_servico
+
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.CONFIRMAR_CONTRATACAO,
+            motivo="acordo_assinado_ambas_partes",
+        )
     db.commit()
     return _dados(db, vaga)

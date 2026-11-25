@@ -427,3 +427,32 @@ Todas as contas criadas pelo seed utilizam a mesma senha:
 - Todos os dados são fictícios.
 - O seed é destinado exclusivamente aos ambientes de desenvolvimento, testes e demonstração.
 - Não utilizar essas credenciais em ambiente de produção.
+
+
+## Maquina de Estados de Vaga (US23 / FLX09)
+
+Transicoes centralizadas em app/services/vagas.py (transicionar), prazo FLX09 em calcular_prazo_publicacao (min(agora + 12h, inicio_em)) e varredura periodica a cada 30s no lifespan de app/main.py.
+
+```mermaid
+stateDiagram-v2
+    [*] --> PUBLICADA : criar_vaga
+    PUBLICADA --> AGUARDANDO_ACEITE : escolher_profissional
+    PUBLICADA --> EXPIRADA : varredura_FLX09
+    PUBLICADA --> CANCELADA : cancelar_vaga
+    AGUARDANDO_ACEITE --> ACEITA : aceitar_convite
+    AGUARDANDO_ACEITE --> PUBLICADA : recusar_ou_expirar_convite
+    ACEITA --> AGUARDANDO_PAGAMENTO : emitir_cobranca
+    ACEITA --> CONTRATADA : confirmar_contratacao
+    AGUARDANDO_PAGAMENTO --> CONTRATADA : pagamento_confirmado
+    AGUARDANDO_PAGAMENTO --> PUBLICADA : cobranca_expirada
+    CONTRATADA --> EM_EXECUCAO : iniciar_execucao
+    CONTRATADA --> EM_DISPUTA : abrir_disputa
+    CONTRATADA --> FALTA : registrar_falta
+    EM_EXECUCAO --> ENCERRADA : encerrar_servico
+    EM_EXECUCAO --> CONCLUIDA : concluir_servico
+    ENCERRADA --> CONCLUIDA : concluir_ou_24h
+    CONCLUIDA --> LIBERADA : liberar_integral
+    CONCLUIDA --> LIBERADA_PARCIAL : liberar_parcial_72h
+    EM_DISPUTA --> REEMBOLSADA : reembolso_total
+    EM_DISPUTA --> CONCLUIDA : resolvida_com_cobranca
+```
