@@ -21,11 +21,12 @@ from app.api.v1.schemas.perfil_contratante import (
     AtualizacaoContratanteEntrada,
     PerfilPublicoContratante,
 )
+from app.api.v1.schemas.perfil_profissional import PerfilPublicoProfissional
 from app.db import get_db
 from app.deps import usuario_atual
 from app.erros import erro_http
 from app.models import Categoria, Usuario
-from app.services import cadastro, perfil_contratante
+from app.services import cadastro, perfil_contratante, perfil_profissional
 
 router = APIRouter(tags=["perfis"])
 
@@ -124,6 +125,16 @@ def consultar_perfil_publico_do_contratante(
 ) -> PerfilPublicoContratante:
     """Visão pública do contratante, sem dados sensíveis, para quem está logado."""
     return perfil_contratante.perfil_publico(db, usuario_id)
+
+
+@router.get("/profissionais/{usuario_id}/perfil", response_model=PerfilPublicoProfissional)
+def consultar_perfil_publico_do_profissional(
+    usuario_id: int,
+    _usuario: Usuario = Depends(usuario_atual),
+    db: Session = Depends(get_db),
+) -> PerfilPublicoProfissional:
+    """Visão pública do profissional, sem dados sensíveis, para quem está logado."""
+    return perfil_profissional.perfil_publico(db, usuario_id)
 
 
 # ---------------------------------------------------------------- comprovações
