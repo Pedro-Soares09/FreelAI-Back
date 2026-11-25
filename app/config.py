@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SEGREDO_PADRAO = "change-this-secret-key"
@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     geocodificacao_osm: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _parsear_cors_origins(cls, valor: object) -> object:
+        if isinstance(valor, str):
+            texto = valor.strip()
+            if not texto:
+                return ["http://localhost:3000"]
+            if not texto.startswith("["):
+                return [item.strip() for item in texto.split(",") if item.strip()]
+        return valor
 
     @model_validator(mode="after")
     def _normalizar_url_do_banco(self) -> "Settings":
