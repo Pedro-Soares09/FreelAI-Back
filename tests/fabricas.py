@@ -87,7 +87,11 @@ def criar_usuario(
 
 
 def cabecalho(usuario: Usuario) -> dict[str, str]:
-    return {"Authorization": f"Bearer {create_access_token(str(usuario.id), duracao=timedelta(days=365))}"}
+    token = create_access_token(
+        str(usuario.id),
+        duracao=timedelta(days=365),
+    )
+    return {"Authorization": f"Bearer {token}"}
 
 
 def criar_categoria(

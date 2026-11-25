@@ -146,7 +146,11 @@ async def handler_http_exception(_request: Request, exc: Exception) -> JSONRespo
     assert isinstance(exc, HTTPException)
     raw_detail = exc.detail
     if isinstance(raw_detail, dict):
-        codigo = str(raw_detail.get("codigo") or raw_detail.get("code") or f"http_{exc.status_code}")
+        codigo = str(
+            raw_detail.get("codigo")
+            or raw_detail.get("code")
+            or f"http_{exc.status_code}"
+        )
         mensagem = str(
             raw_detail.get("mensagem")
             or raw_detail.get("message")
