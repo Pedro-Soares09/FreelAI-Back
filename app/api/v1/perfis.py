@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.schemas.cadastro import (
+    AtualizacaoContratanteEntrada,
     AtualizacaoProfissionalEntrada,
     CadastroContratanteEntrada,
     CadastroProfissionalEntrada,
@@ -94,6 +95,20 @@ def consultar_meu_perfil_contratante(
             status.HTTP_404_NOT_FOUND, "perfil_nao_encontrado", "Perfil contratante não cadastrado."
         )
     return cadastro.detalhar_contratante(db, usuario.perfil_contratante)
+
+
+@router.patch("/perfis/contratante/meu", response_model=PerfilContratanteDetalhe)
+def atualizar_meu_perfil_contratante(
+    entrada: AtualizacaoContratanteEntrada,
+    usuario: Usuario = Depends(usuario_atual),
+    db: Session = Depends(get_db),
+) -> PerfilContratanteDetalhe:
+    if usuario.perfil_contratante is None:
+        raise erro_http(
+            status.HTTP_404_NOT_FOUND, "perfil_nao_encontrado", "Perfil contratante não cadastrado."
+        )
+    perfil = cadastro.atualizar_perfil_contratante(db, usuario.perfil_contratante, entrada)
+    return cadastro.detalhar_contratante(db, perfil)
 
 
 # ---------------------------------------------------------------- comprovações

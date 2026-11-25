@@ -155,8 +155,87 @@
         "title": "AssinaturaProDetalhe",
         "type": "object"
       },
+      "AtualizacaoContratanteEntrada": {
+        "properties": {
+          "documento": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Documento"
+          },
+          "nome": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome"
+          },
+          "razao_social": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Razao Social"
+          },
+          "selfie_url": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selfie Url"
+          },
+          "telefone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefone"
+          }
+        },
+        "title": "AtualizacaoContratanteEntrada",
+        "type": "object"
+      },
       "AtualizacaoProfissionalEntrada": {
         "properties": {
+          "bairro": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bairro"
+          },
           "caracteristicas": {
             "anyOf": [
               {
@@ -182,6 +261,29 @@
             ],
             "title": "Categorias"
           },
+          "cpf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpf"
+          },
+          "data_nascimento": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Nascimento"
+          },
           "foto_url": {
             "anyOf": [
               {
@@ -193,6 +295,57 @@
               }
             ],
             "title": "Foto Url"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": -90.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "logradouro": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logradouro"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "maximum": 180.0,
+                "minimum": -180.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "nome": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome"
           },
           "raio_km": {
             "anyOf": [
@@ -532,7 +685,7 @@
                 "type": "null"
               }
             ],
-            "description": "CPF (pessoa física) ou CNPJ.",
+            "description": "CPF (pessoa física) ou CNPJ (pessoa jurídica, opcional).",
             "title": "Documento"
           },
           "razao_social": {
@@ -630,18 +783,11 @@
             "title": "Foto Url"
           },
           "latitude": {
-            "anyOf": [
-              {
-                "maximum": 90.0,
-                "minimum": -90.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opcional: deduzida do bairro quando ausente.",
-            "title": "Latitude"
+            "description": "Latitude obrigatória da localização.",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
           },
           "logradouro": {
             "anyOf": [
@@ -656,17 +802,11 @@
             "title": "Logradouro"
           },
           "longitude": {
-            "anyOf": [
-              {
-                "maximum": 180.0,
-                "minimum": -180.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Longitude"
+            "description": "Longitude obrigatória da localização.",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
           },
           "raio_km": {
             "default": 5,
@@ -684,6 +824,8 @@
           "data_nascimento",
           "telefone",
           "bairro",
+          "latitude",
+          "longitude",
           "categorias"
         ],
         "title": "CadastroProfissionalEntrada",
@@ -3353,6 +3495,10 @@
             ],
             "title": "Documento"
           },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -3420,6 +3566,7 @@
           "id",
           "usuario_id",
           "nome",
+          "email",
           "tipo_pessoa",
           "documento",
           "razao_social",
@@ -7001,6 +7148,50 @@
           }
         ],
         "summary": "Consultar Meu Perfil Contratante",
+        "tags": [
+          "perfis"
+        ]
+      },
+      "patch": {
+        "operationId": "perfis_atualizar_meu_perfil_contratante",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AtualizacaoContratanteEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerfilContratanteDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Atualizar Meu Perfil Contratante",
         "tags": [
           "perfis"
         ]

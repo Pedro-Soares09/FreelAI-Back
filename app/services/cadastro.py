@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.schemas.cadastro import (
     ArquivoDaFila,
+    AtualizacaoContratanteEntrada,
     AtualizacaoProfissionalEntrada,
     CadastroContratanteEntrada,
     CadastroProfissionalEntrada,
@@ -21,6 +22,8 @@ from app.api.v1.schemas.cadastro import (
     QualificacaoEntrada,
     StatusVerificacao,
     VerificacaoEntrada,
+    cnpj_valido,
+    cpf_valido,
 )
 from app.erros import erro_http
 from app.models import (
@@ -123,6 +126,7 @@ def detalhar_contratante(db: Session, perfil: PerfilContratante) -> PerfilContra
         id=perfil.id,
         usuario_id=perfil.usuario_id,
         nome=perfil.usuario.nome,
+        email=perfil.usuario.email,
         tipo_pessoa=perfil.tipo_pessoa,
         documento=perfil.documento,
         razao_social=perfil.razao_social,
@@ -235,10 +239,60 @@ def atualizar_perfil_profissional(
     db: Session, perfil: PerfilProfissional, entrada: AtualizacaoProfissionalEntrada
 ) -> PerfilProfissional:
     dados = entrada.model_dump(exclude_unset=True)
+
+    if dados.get("nome") is not None:
+        perfil.usuario.nome = dados["nome"]
+
+    if dados.get("cpf") is not None and dados["cpf"] != perfil.cpf:
+        cpf_em_uso = db.scalar(
+            select(PerfilProfissional.id).where(
+                PerfilProfissional.cpf == dados["cpf"], PerfilProfissional.id != perfil.id
+            )
+        )
+        if cpf_em_uso is not None:
+            raise erro_http(status.HTTP_409_CONFLICT, "cpf_em_uso", "Este CPF já está cadastrado.")
+        perfil.cpf = dados["cpf"]
+
+    if dados.get("data_nascimento") is not None:
+        perfil.data_nascimento = dados["data_nascimento"]
     if "telefone" in dados and dados["telefone"] is not None:
         perfil.telefone = dados["telefone"]
     if "foto_url" in dados:
         perfil.foto_url = dados["foto_url"]
+
+    campos_endereco = {"bairro", "logradouro", "latitude", "longitude"}
+    if campos_endereco.intersection(dados):
+        endereco = perfil.endereco
+        if endereco is None:
+            if (
+                not dados.get("bairro")
+                or dados.get("latitude") is None
+                or dados.get("longitude") is None
+            ):
+                raise erro_http(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    "localizacao_obrigatoria",
+                    "Informe bairro, latitude e longitude.",
+                    campo="latitude",
+                )
+            endereco = Endereco(
+                bairro=dados["bairro"].strip(),
+                logradouro=dados.get("logradouro"),
+                latitude=dados["latitude"],
+                longitude=dados["longitude"],
+            )
+            db.add(endereco)
+            perfil.endereco = endereco
+        else:
+            if "bairro" in dados and dados["bairro"] is not None:
+                endereco.bairro = dados["bairro"].strip()
+            if "logradouro" in dados:
+                endereco.logradouro = dados["logradouro"]
+            if "latitude" in dados:
+                endereco.latitude = dados["latitude"]
+            if "longitude" in dados:
+                endereco.longitude = dados["longitude"]
+
     if dados.get("raio_km") is not None:
         from app.services import configuracao
 
@@ -248,6 +302,46 @@ def atualizar_perfil_profissional(
     if entrada.caracteristicas is not None:
         for campo in ("comunicacao", "agilidade", "organizacao"):
             setattr(perfil, campo, getattr(entrada.caracteristicas, campo))
+
+    db.commit()
+    db.refresh(perfil)
+    return perfil
+
+
+def atualizar_perfil_contratante(
+    db: Session, perfil: PerfilContratante, entrada: AtualizacaoContratanteEntrada
+) -> PerfilContratante:
+    dados = entrada.model_dump(exclude_unset=True)
+
+    if dados.get("nome") is not None:
+        perfil.usuario.nome = dados["nome"]
+
+    if "documento" in dados:
+        documento = dados["documento"]
+        if perfil.tipo_pessoa.value == "pf":
+            if not documento or not cpf_valido(documento):
+                raise erro_http(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    "cpf_invalido",
+                    "Informe um CPF válido.",
+                    campo="documento",
+                )
+        elif documento and not cnpj_valido(documento):
+            raise erro_http(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "cnpj_invalido",
+                "Informe um CNPJ válido.",
+                campo="documento",
+            )
+        perfil.documento = documento or None
+
+    if "razao_social" in dados:
+        perfil.razao_social = dados["razao_social"].strip() if dados["razao_social"] else None
+    if "telefone" in dados and dados["telefone"] is not None:
+        perfil.telefone = dados["telefone"]
+    if "selfie_url" in dados:
+        perfil.selfie_url = dados["selfie_url"]
+
     db.commit()
     db.refresh(perfil)
     return perfil
