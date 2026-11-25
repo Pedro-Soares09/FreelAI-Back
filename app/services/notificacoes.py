@@ -542,3 +542,35 @@ def marcar_todas_como_lidas(db: Session, usuario: Usuario) -> ResultadoLeituraTo
         marcadas=marcadas,
         lida_em=_em_utc(instante) if marcadas > 0 else None,
     )
+
+
+def _contratante_da_vaga(db: Session, vaga: Vaga) -> int | None:
+    return _usuarios_da_vaga(db, vaga)[0]
+
+
+def notificar_nova_rodada(db: Session, vaga: Vaga, rodada: int) -> None:
+    """Avisa o contratante que os três anteriores não aceitaram e que há novos candidatos."""
+    uid = _contratante_da_vaga(db, vaga)
+    if uid is not None:
+        criar_notificacao(
+            db,
+            usuario_id=uid,
+            tipo="nova_rodada",
+            titulo="Novos profissionais para a sua vaga",
+            mensagem=f'Rodada {rodada} de "{vaga.titulo}": escolha entre os novos candidatos.',
+            vaga_id=vaga.id,
+        )
+
+
+def notificar_vaga_sem_candidatos(db: Session, vaga: Vaga) -> None:
+    """Avisa o contratante que a vaga expirou por falta de profissionais disponíveis."""
+    uid = _contratante_da_vaga(db, vaga)
+    if uid is not None:
+        criar_notificacao(
+            db,
+            usuario_id=uid,
+            tipo="vaga_expirada",
+            titulo="Sua vaga expirou sem match",
+            mensagem=f'Não há mais profissionais disponíveis para "{vaga.titulo}".',
+            vaga_id=vaga.id,
+        )

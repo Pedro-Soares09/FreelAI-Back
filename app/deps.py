@@ -3,11 +3,12 @@ from collections.abc import Callable
 from fastapi import Depends, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.erros import erro_http
-from app.models import EstadoConta, PapelUsuario, TipoPerfil, Usuario
+from app.models import EstadoConta, PapelUsuario, SancaoConta, TipoPerfil, Usuario
 from app.security import decode_access_token
 from app.tempo import agora, como_utc
 
@@ -24,12 +25,25 @@ def _nao_autenticado():
     return erro
 
 
+def _motivo_da_sancao(usuario: Usuario, db: Session) -> str | None:
+    return db.scalar(
+        select(SancaoConta.motivo)
+        .where(SancaoConta.usuario_id == usuario.id, SancaoConta.ativa.is_(True))
+        .order_by(SancaoConta.id.desc())
+    )
+
+
 def barrar_conta_bloqueada(usuario: Usuario, db: Session) -> None:
     """Impede o uso de contas banidas ou suspensas. Suspensões vencidas são encerradas."""
     if usuario.excluida_em is not None:
         raise erro_http(status.HTTP_403_FORBIDDEN, "conta_excluida", "Esta conta foi excluída.")
     if usuario.estado == EstadoConta.BANIDA:
-        raise erro_http(status.HTTP_403_FORBIDDEN, "conta_banida", "Esta conta foi banida.")
+        raise erro_http(
+            status.HTTP_403_FORBIDDEN,
+            "conta_banida",
+            "Esta conta foi banida.",
+            motivo=_motivo_da_sancao(usuario, db),
+        )
     if usuario.estado == EstadoConta.SUSPENSA:
         retorno = usuario.suspensa_ate and como_utc(usuario.suspensa_ate)
         if retorno is not None and retorno <= agora():
@@ -42,6 +56,7 @@ def barrar_conta_bloqueada(usuario: Usuario, db: Session) -> None:
             "conta_suspensa",
             "Esta conta está suspensa.",
             retorno_em=retorno.isoformat() if retorno else None,
+            motivo=_motivo_da_sancao(usuario, db),
         )
 
 
