@@ -26,6 +26,9 @@ class PerfilResumo(BaseModel):
     destaque: bool = Field(
         default=False, description="Contratante com adicionais pagos; sem efeito no match."
     )
+    cor_destaque: str | None = Field(
+        default=None, description="Cor de destaque escolhida pelo contratante."
+    )
 
 
 class VagaResumo(BaseModel):

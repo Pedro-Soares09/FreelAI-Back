@@ -116,13 +116,15 @@ def _resumo_contratante(db: Session, contratante: PerfilContratante) -> Contrata
     destaque = comprovantes.destaque_do_contratante(db, contratante.usuario_id)
     return ContratanteResumo(
         id=str(contratante.id),
+        usuario_id=contratante.usuario_id,
         nome=contratante.razao_social or usuario.nome,
-        foto_url=contratante.selfie_url,
+        foto_url=contratante.avatar_url,
         verificado=contratante.verificado,
         nota_media=nota,
         total_avaliacoes=total,
         adicionais_pagos=destaque.adicionais_pagos,
         destaque=destaque.destaque,
+        cor_destaque=contratante.cor_destaque,
     )
 
 

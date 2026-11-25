@@ -3,6 +3,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
     Column,
@@ -148,6 +149,15 @@ class PerfilContratante(MarcaTempo, Base):
     verificacao_enviada_em: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Personalização do perfil (todos opcionais).
+    bio: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    bairro: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    horario_contato: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    categorias_interesse: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    exigir_verificado: Mapped[bool] = mapped_column(Boolean, default=False)
+    aceita_notificacoes: Mapped[bool] = mapped_column(Boolean, default=True)
+    cor_destaque: Mapped[str] = mapped_column(String(20), default="lilas")
+    avatar_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     usuario: Mapped[Usuario] = relationship(back_populates="perfil_contratante")
 

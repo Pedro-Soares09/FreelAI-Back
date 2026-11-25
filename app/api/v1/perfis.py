@@ -5,7 +5,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.schemas.cadastro import (
-    AtualizacaoContratanteEntrada,
     AtualizacaoProfissionalEntrada,
     CadastroContratanteEntrada,
     CadastroProfissionalEntrada,
@@ -18,11 +17,15 @@ from app.api.v1.schemas.cadastro import (
     QualificacaoEntrada,
     SegurancaDaCategoria,
 )
+from app.api.v1.schemas.perfil_contratante import (
+    AtualizacaoContratanteEntrada,
+    PerfilPublicoContratante,
+)
 from app.db import get_db
 from app.deps import usuario_atual
 from app.erros import erro_http
 from app.models import Categoria, Usuario
-from app.services import cadastro
+from app.services import cadastro, perfil_contratante
 
 router = APIRouter(tags=["perfis"])
 
@@ -103,12 +106,24 @@ def atualizar_meu_perfil_contratante(
     usuario: Usuario = Depends(usuario_atual),
     db: Session = Depends(get_db),
 ) -> PerfilContratanteDetalhe:
+    """Edita dados cadastrais e a personalização (bio, cor, avatar, preferências)."""
     if usuario.perfil_contratante is None:
         raise erro_http(
             status.HTTP_404_NOT_FOUND, "perfil_nao_encontrado", "Perfil contratante não cadastrado."
         )
     perfil = cadastro.atualizar_perfil_contratante(db, usuario.perfil_contratante, entrada)
+    perfil = perfil_contratante.atualizar(db, perfil, entrada)
     return cadastro.detalhar_contratante(db, perfil)
+
+
+@router.get("/contratantes/{usuario_id}/perfil", response_model=PerfilPublicoContratante)
+def consultar_perfil_publico_do_contratante(
+    usuario_id: int,
+    _usuario: Usuario = Depends(usuario_atual),
+    db: Session = Depends(get_db),
+) -> PerfilPublicoContratante:
+    """Visão pública do contratante, sem dados sensíveis, para quem está logado."""
+    return perfil_contratante.perfil_publico(db, usuario_id)
 
 
 # ---------------------------------------------------------------- comprovações

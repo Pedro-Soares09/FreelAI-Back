@@ -192,7 +192,7 @@ class CadastroContratanteEntrada(BaseModel):
         return digitos
 
 
-class AtualizacaoContratanteEntrada(BaseModel):
+class DadosContratanteEntrada(BaseModel):
     nome: str | None = Field(default=None, min_length=1, max_length=120)
     documento: str | None = Field(default=None, max_length=32)
     razao_social: str | None = Field(default=None, max_length=160)
@@ -265,6 +265,14 @@ class PerfilContratanteDetalhe(BaseModel):
     verificacao_motivo: str | None
     adicionais_pagos: int = 0
     destaque: bool = False
+    bio: str | None = None
+    bairro: str | None = None
+    horario_contato: str | None = None
+    categorias_interesse: list[str] = Field(default_factory=list)
+    exigir_verificado: bool = False
+    aceita_notificacoes: bool = True
+    cor_destaque: str = "lilas"
+    avatar_url: str | None = None
 
 
 # ---------------------------------------------------------------- verificação

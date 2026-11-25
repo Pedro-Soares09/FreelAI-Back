@@ -130,7 +130,7 @@ def test_cadastro_profissional_exige_coordenadas(cliente, db, campo):
     )
 
     assert resposta.status_code == 422
-    assert any(erro["loc"][-1] == campo for erro in resposta.json()["detail"])
+    assert any(erro["field"].endswith(campo) for erro in resposta.json()["detail"]["erros"])
 
 
 def test_cadastro_profissional_recusa_categoria_inexistente_cpf_e_perfil_repetidos(cliente, db):
@@ -279,7 +279,7 @@ def test_cnpj_invalido_indica_campo_documento(cliente, db):
     )
 
     assert resposta.status_code == 422
-    assert resposta.json()["detail"][0]["loc"][-1] == "documento"
+    assert resposta.json()["detail"]["erros"][0]["field"].endswith("documento")
 
 
 def test_atualiza_perfil_contratante(cliente, db):

@@ -85,7 +85,9 @@ class DisputaAdminDetalhe(BaseModel):
     vaga_titulo: str
     vaga_estado: EstadoVaga
     contratante_usuario_id: int
+    contratante_nome: str | None = None
     profissional_usuario_id: int | None = None
+    profissional_nome: str | None = None
     aberta_por_id: int
     descricao: str
     estado: EstadoDisputa
@@ -107,9 +109,7 @@ class DisputaAdminDetalhe(BaseModel):
     chat: list[MensagemDisputaAdmin] = Field(
         description="Histórico completo de mensagens da conversa da vaga."
     )
-    anexos: list[str] = Field(
-        description="Lista de URLs de anexos enviados na conversa da vaga."
-    )
+    anexos: list[str] = Field(description="Lista de URLs de anexos enviados na conversa da vaga.")
     pagamento: PagamentoDetalhe
 
     model_config = ConfigDict(

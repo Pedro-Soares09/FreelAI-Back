@@ -239,6 +239,11 @@ def consultar_disputa_da_vaga(db: Session, vaga: Vaga, usuario: Usuario) -> Disp
     return montar_detalhe(db, disputa, vaga)
 
 
+def _nome(db: Session, usuario_id: int | None) -> str | None:
+    usuario = db.get(Usuario, usuario_id) if usuario_id is not None else None
+    return usuario.nome if usuario is not None else None
+
+
 def montar_item_admin(db: Session, disputa: Disputa) -> DisputaAdminDetalhe:
     """Monta a visão da aba de disputas do admin com chat, anexos da vaga, pagamento e tempo."""
     vaga = db.get(Vaga, disputa.vaga_id)
@@ -287,7 +292,9 @@ def montar_item_admin(db: Session, disputa: Disputa) -> DisputaAdminDetalhe:
         vaga_titulo=vaga.titulo,
         vaga_estado=vaga.estado,
         contratante_usuario_id=contratante_uid,
+        contratante_nome=_nome(db, contratante_uid),
         profissional_usuario_id=profissional_uid,
+        profissional_nome=_nome(db, profissional_uid),
         aberta_por_id=disputa.aberta_por_id,
         descricao=disputa.descricao,
         estado=disputa.estado,
