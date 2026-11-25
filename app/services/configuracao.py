@@ -88,6 +88,18 @@ PARAMETROS: dict[str, Parametro] = {
     ),
     "raio_mapa_km": Parametro(15, 15, "Raio máximo do mapa de ofertas próximas"),
     "anexo_max_mb": Parametro(10, 10, "Tamanho máximo de um arquivo enviado"),
+    "cancelamento_tardio_horas": Parametro(
+        4, 4, "Antecedência mínima do cancelamento sem advertência", inteiro=False
+    ),
+    "contestacao_prazo_dias": Parametro(5, 5, "Prazo para contestar uma suspensão ou banimento"),
+    "suspensao_nota_dias": Parametro(30, 30, "Duração da suspensão por nota média baixa"),
+    "nota_minima_suspensao": Parametro(
+        2.5, 2.5, "Nota média abaixo da qual a conta é suspensa", inteiro=False
+    ),
+    "avaliacoes_minimas_suspensao": Parametro(
+        5, 5, "Avaliações necessárias para a suspensão por nota média"
+    ),
+    "rodadas_maximas": Parametro(3, 3, "Rodadas de convites antes de a vaga expirar sem match"),
 }
 
 

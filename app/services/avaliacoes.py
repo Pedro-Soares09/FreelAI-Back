@@ -38,7 +38,7 @@ from app.models import (
     Usuario,
     Vaga,
 )
-from app.services import configuracao, pagamentos
+from app.services import configuracao, pagamentos, sancoes
 from app.services.varreduras import varredura
 from app.tempo import agora, como_utc
 
@@ -247,6 +247,10 @@ def registrar_avaliacao(
             "Você já avaliou este serviço.",
         ) from None
     db.refresh(nova)
+    for avaliado in {nova.avaliado_id, outra.avaliado_id if outra is not None else None}:
+        alvo = db.get(Usuario, avaliado) if avaliado is not None else None
+        if alvo is not None:
+            sancoes.verificar_nota_baixa(db, alvo)
     return nova
 
 
@@ -326,6 +330,10 @@ def revelar_avaliacoes_por_prazo(db: Session) -> int:
             reveladas += 1
     if reveladas:
         db.commit()
+        for avaliado_id in {a.avaliado_id for a in ocultas if a.visivel_em is not None}:
+            alvo = db.get(Usuario, avaliado_id)
+            if alvo is not None:
+                sancoes.verificar_nota_baixa(db, alvo)
     return reveladas
 
 

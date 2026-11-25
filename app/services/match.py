@@ -34,7 +34,7 @@ from app.models import (
     Vaga,
     categorias_profissional,
 )
-from app.services import configuracao, notificacoes
+from app.services import agenda, configuracao, notificacoes
 from app.services.geo import caixa_para_raio, distancia_km
 from app.services.varreduras import varredura
 from app.tempo import agora, como_utc
@@ -98,7 +98,7 @@ def _profissionais_ocupados(db: Session, vaga: Vaga, ids: list[int]) -> set[int]
         outro_inicio, outro_fim = _intervalo(outra)
         if outro_inicio < fim and outro_fim > inicio:
             ocupados.add(outra.profissional_id)
-    return ocupados
+    return ocupados | agenda.profissionais_bloqueados(db, ids, inicio, fim)
 
 
 def pendencias_da_categoria(
@@ -486,3 +486,39 @@ def expirar_convites_vencidos(db: Session) -> int:
     if vencidos:
         db.commit()
     return len(vencidos)
+
+
+ESTADOS_CONVITE_ENCERRADO = (EstadoConvite.RECUSADO, EstadoConvite.EXPIRADO)
+
+
+def _rodada_sem_resposta(db: Session, vaga: Vaga) -> bool:
+    """A rodada atual terminou sem aceite: todos os convites dela foram recusados ou expiraram."""
+    convites = db.scalars(
+        select(Convite).where(Convite.vaga_id == vaga.id, Convite.rodada == vaga.rodada)
+    ).all()
+    return bool(convites) and all(c.estado in ESTADOS_CONVITE_ENCERRADO for c in convites)
+
+
+@varredura("nova_rodada")
+def abrir_novas_rodadas(db: Session) -> int:
+    """Abre a rodada seguinte quando uma rodada termina sem aceite; sem candidatos, expira a vaga.
+
+    Só vagas publicadas participam. Ao atingir `rodadas_maximas` ou sem elegíveis restantes, a
+    vaga expira e o contratante é avisado.
+    """
+    vagas = db.scalars(select(Vaga).where(Vaga.estado == EstadoVaga.PUBLICADA)).all()
+    alteradas = 0
+    limite = int(configuracao.get("rodadas_maximas", db=db))
+    for vaga in vagas:
+        if not _rodada_sem_resposta(db, vaga):
+            continue
+        convites = [] if vaga.rodada >= limite else gerar_rodada(db, vaga)
+        if convites:
+            notificacoes.notificar_nova_rodada(db, vaga, vaga.rodada)
+        else:
+            vaga.estado = EstadoVaga.EXPIRADA
+            vaga.prazo_em = None
+            db.commit()
+            notificacoes.notificar_vaga_sem_candidatos(db, vaga)
+        alteradas += 1
+    return alteradas

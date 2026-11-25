@@ -38,7 +38,7 @@ from app.models import (
     Usuario,
     Vaga,
 )
-from app.services import configuracao, notificacoes
+from app.services import configuracao, notificacoes, sancoes
 from app.tempo import agora, como_utc
 
 META_FILA_HORAS_UTEIS = 48
@@ -333,8 +333,13 @@ def _banir_se_atingiu_limite(db: Session, denunciado_id: int) -> tuple[int, int,
     if penalidades >= limite:
         usuario = db.get(Usuario, denunciado_id)
         if usuario is not None:
-            usuario.estado = EstadoConta.BANIDA
-            usuario.suspensa_ate = None
+            sancoes.banir(
+                db,
+                usuario,
+                motivo=f"{penalidades} denúncias procedentes.",
+                origem="denuncias",
+                commit=False,
+            )
             banido = True
     return penalidades, limite, banido
 
