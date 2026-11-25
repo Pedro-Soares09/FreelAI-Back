@@ -117,6 +117,22 @@ def test_cadastro_profissional_recusa_dados_invalidos(cliente, db, alteracao):
     assert resposta.status_code == 422
 
 
+@pytest.mark.parametrize("campo", ["latitude", "longitude"])
+def test_cadastro_profissional_exige_coordenadas(cliente, db, campo):
+    categoria = criar_categoria(db)
+    corpo = _corpo_profissional([categoria])
+    corpo.pop(campo)
+
+    resposta = cliente.post(
+        "/api/v1/perfis/profissional",
+        json=corpo,
+        headers=cabecalho(_conta_pendente(db)),
+    )
+
+    assert resposta.status_code == 422
+    assert any(erro["field"].endswith(campo) for erro in resposta.json()["detail"]["erros"])
+
+
 def test_cadastro_profissional_recusa_categoria_inexistente_cpf_e_perfil_repetidos(cliente, db):
     categoria = criar_categoria(db)
     conta = _conta_pendente(db)
@@ -166,6 +182,55 @@ def test_atualiza_raio_limitado_e_categorias(cliente, db):
     assert resposta.json()["telefone"] == "8133334444"
 
 
+def test_atualiza_dados_e_localizacao_do_profissional(cliente, db):
+    categoria = criar_categoria(db)
+    conta = _conta_pendente(db)
+    cliente.post(
+        "/api/v1/perfis/profissional",
+        json=_corpo_profissional([categoria]),
+        headers=cabecalho(conta),
+    )
+
+    resposta = cliente.patch(
+        "/api/v1/perfis/profissional/meu",
+        json={
+            "nome": "João Atualizado",
+            "cpf": CPF_OUTRO,
+            "data_nascimento": "1990-05-20",
+            "bairro": "Casa Forte",
+            "latitude": -8.036,
+            "longitude": -34.918,
+        },
+        headers=cabecalho(conta),
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["nome"] == "João Atualizado"
+    assert resposta.json()["cpf"] == CPF_OUTRO
+    assert resposta.json()["data_nascimento"] == "1990-05-20"
+    assert resposta.json()["bairro"] == "Casa Forte"
+    assert resposta.json()["latitude"] == -8.036
+    assert resposta.json()["longitude"] == -34.918
+
+
+def test_edicao_profissional_nao_permite_atualizar_so_uma_coordenada(cliente, db):
+    categoria = criar_categoria(db)
+    conta = _conta_pendente(db)
+    cliente.post(
+        "/api/v1/perfis/profissional",
+        json=_corpo_profissional([categoria]),
+        headers=cabecalho(conta),
+    )
+
+    resposta = cliente.patch(
+        "/api/v1/perfis/profissional/meu",
+        json={"latitude": -8.04},
+        headers=cabecalho(conta),
+    )
+
+    assert resposta.status_code == 422
+
+
 # ---------------------------------------------------------------- cadastro contratante
 
 
@@ -204,6 +269,65 @@ def test_contratante_pf_exige_cpf_valido_e_pj_recusa_cnpj_invalido(cliente, db):
     )
     assert sem_cpf.status_code == 422
     assert cnpj_ruim.status_code == 422
+
+
+def test_cnpj_invalido_indica_campo_documento(cliente, db):
+    resposta = cliente.post(
+        "/api/v1/perfis/contratante",
+        json={"tipo_pessoa": "pj", "documento": "123", "telefone": "81988887777"},
+        headers=cabecalho(_conta_pendente(db)),
+    )
+
+    assert resposta.status_code == 422
+    assert resposta.json()["detail"]["erros"][0]["field"].endswith("documento")
+
+
+def test_atualiza_perfil_contratante(cliente, db):
+    conta = _conta_pendente(db)
+    criado = cliente.post(
+        "/api/v1/perfis/contratante",
+        json={"tipo_pessoa": "pj", "telefone": "81988887777"},
+        headers=cabecalho(conta),
+    )
+    assert criado.status_code == 201
+
+    resposta = cliente.patch(
+        "/api/v1/perfis/contratante/meu",
+        json={
+            "nome": "Empresa Atualizada",
+            "documento": CNPJ,
+            "razao_social": "Empresa Atualizada Ltda",
+            "telefone": "8133334444",
+            "selfie_url": "arquivos/selfie-atualizada.jpg",
+        },
+        headers=cabecalho(conta),
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["nome"] == "Empresa Atualizada"
+    assert resposta.json()["email"] == conta.email
+    assert resposta.json()["documento"] == CNPJ
+    assert resposta.json()["razao_social"] == "Empresa Atualizada Ltda"
+    assert resposta.json()["telefone"] == "8133334444"
+    assert resposta.json()["selfie_url"] == "arquivos/selfie-atualizada.jpg"
+
+
+def test_edicao_contratante_recusa_documento_invalido_com_campo(cliente, db):
+    conta = _conta_pendente(db)
+    cliente.post(
+        "/api/v1/perfis/contratante",
+        json={"tipo_pessoa": "pj", "telefone": "81988887777"},
+        headers=cabecalho(conta),
+    )
+
+    resposta = cliente.patch(
+        "/api/v1/perfis/contratante/meu",
+        json={"documento": "123"},
+        headers=cabecalho(conta),
+    )
+
+    assert resposta.status_code == 422
+    assert resposta.json()["detail"]["campo"] == "documento"
 
 
 # ---------------------------------------------------------------- verificação de identidade

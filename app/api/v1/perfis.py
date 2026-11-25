@@ -106,12 +106,13 @@ def atualizar_meu_perfil_contratante(
     usuario: Usuario = Depends(usuario_atual),
     db: Session = Depends(get_db),
 ) -> PerfilContratanteDetalhe:
-    """Edita bio, bairro, horário de contato, preferências, cor de destaque e avatar."""
+    """Edita dados cadastrais e a personalização (bio, cor, avatar, preferências)."""
     if usuario.perfil_contratante is None:
         raise erro_http(
             status.HTTP_404_NOT_FOUND, "perfil_nao_encontrado", "Perfil contratante não cadastrado."
         )
-    perfil = perfil_contratante.atualizar(db, usuario.perfil_contratante, entrada)
+    perfil = cadastro.atualizar_perfil_contratante(db, usuario.perfil_contratante, entrada)
+    perfil = perfil_contratante.atualizar(db, perfil, entrada)
     return cadastro.detalhar_contratante(db, perfil)
 
 

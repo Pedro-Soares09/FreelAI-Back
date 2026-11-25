@@ -5,14 +5,15 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.api.v1.schemas.cadastro import DadosContratanteEntrada
 from app.models.enums import TipoPessoa
 
 # Paleta fixa de cores de destaque. O front mapeia cada nome para um tom com contraste adequado.
 CoresDestaque = Literal["lilas", "azul", "verde", "rosa", "laranja", "grafite"]
 
 
-class AtualizacaoContratanteEntrada(BaseModel):
-    """Campos opcionais da personalização; só o que for enviado é alterado."""
+class AtualizacaoContratanteEntrada(DadosContratanteEntrada):
+    """Dados cadastrais e personalização do perfil; só o que for enviado é alterado."""
 
     bio: str | None = Field(default=None, max_length=300)
     bairro: str | None = Field(default=None, max_length=80)
