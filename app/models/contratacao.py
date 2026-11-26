@@ -65,6 +65,10 @@ class Vaga(MarcaTempo, Base):
     prazo_em: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
+    checkin_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelada_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelada_por_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"), nullable=True)
+    motivo_cancelamento: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     convites: Mapped[list["Convite"]] = relationship(back_populates="vaga")
 
@@ -315,3 +319,49 @@ class ComprovantePagamento(Base):
     taxa_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("0"))
     taxa_valor: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"))
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+
+
+class BloqueioAgenda(Base):
+    """Período em que o profissional não aceita serviços."""
+
+    __tablename__ = "bloqueios_agenda"
+    __table_args__ = (CheckConstraint("fim_em > inicio_em", name="ck_bloqueios_agenda_periodo"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profissional_id: Mapped[int] = mapped_column(
+        ForeignKey("perfis_profissionais.id"), index=True
+    )
+    inicio_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    fim_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    motivo: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+
+class SancaoConta(Base):
+    """Suspensão ou banimento aplicado a uma conta, com origem e motivo."""
+
+    __tablename__ = "sancoes_conta"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    tipo: Mapped[str] = mapped_column(String(12))  # suspensao | banimento
+    origem: Mapped[str] = mapped_column(String(20))  # advertencias | nota | denuncias | admin
+    motivo: Mapped[str] = mapped_column(String(255))
+    inicio_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+    fim_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ativa: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    encerrada_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ContestacaoConta(Base):
+    """Contestação de uma sanção: uma por caso, decidida pela administração."""
+
+    __tablename__ = "contestacoes_conta"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sancao_id: Mapped[int] = mapped_column(ForeignKey("sancoes_conta.id"), unique=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    texto: Mapped[str] = mapped_column(String(1000))
+    criada_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+    decidida_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    aceita: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    motivo_decisao: Mapped[str | None] = mapped_column(String(255), nullable=True)

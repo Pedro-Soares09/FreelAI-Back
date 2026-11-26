@@ -1,8 +1,9 @@
-﻿import asyncio
-from contextlib import asynccontextmanager
+import asyncio
+import contextlib
 import json
 import logging
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -21,6 +22,7 @@ from app.erros import (
 )
 from app.routers import auth, mock
 from app.security import decode_access_token
+from app.services import agendador
 
 logger = logging.getLogger("freelai.requisicoes")
 if not logger.handlers:
@@ -51,46 +53,23 @@ def _id_da_operacao(rota: APIRoute) -> str:
     return f"{prefixo}_{rota.name}"
 
 
-INTERVALO_VARREDURA_SEGUNDOS = 30.0
-
-
-def _executar_ciclo_varreduras() -> dict[str, int]:
-    from app.db import SessionLocal
-    from app.services import varreduras
-
-    db = SessionLocal()
-    try:
-        return varreduras.executar_varreduras(db)
-    finally:
-        db.close()
-
-
-async def _loop_varreduras(intervalo: float = INTERVALO_VARREDURA_SEGUNDOS) -> None:
-    while True:
-        await asyncio.sleep(intervalo)
-        try:
-            await asyncio.to_thread(_executar_ciclo_varreduras)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception("Falha na execucao periodica de varreduras")
-
-
 @asynccontextmanager
-async def _lifespan(_app: FastAPI):
-    tarefa = asyncio.create_task(_loop_varreduras())
+async def ciclo_de_vida(_app: FastAPI):
+    """Liga o agendador das varreduras na subida e o encerra de forma limpa no shutdown."""
+    tarefa = None
+    if settings.varreduras_automaticas:
+        tarefa = asyncio.create_task(agendador.laco())
     try:
         yield
     finally:
-        tarefa.cancel()
-        try:
-            await tarefa
-        except asyncio.CancelledError:
-            pass
+        if tarefa is not None:
+            tarefa.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await tarefa
 
 
 app = FastAPI(
-    lifespan=_lifespan,
+    lifespan=ciclo_de_vida,
     title="FreelAI Back",
     version="1.0.0",
     description="API do FreelAI: contratantes e profissionais em serviços pontuais.",

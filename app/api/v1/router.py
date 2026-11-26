@@ -7,6 +7,7 @@ from app.api.v1 import (
     arquivos,
     auth,
     avaliacoes,
+    cancelamento,
     comprovantes,
     conta,
     conversas,
@@ -16,6 +17,7 @@ from app.api.v1 import (
     pagamentos,
     perfis,
     profissional,
+    sancoes,
     saude,
     stubs,
     vagas,
@@ -32,6 +34,9 @@ api_router.include_router(conta.router)
 api_router.include_router(admin.router)
 api_router.include_router(admin_aprovacoes.router)
 api_router.include_router(arquivos.router)
+api_router.include_router(cancelamento.router)
+api_router.include_router(sancoes.router_conta)
+api_router.include_router(sancoes.router_admin)
 api_router.include_router(avaliacoes.router)
 api_router.include_router(conversas.router)
 api_router.include_router(denuncias.router)

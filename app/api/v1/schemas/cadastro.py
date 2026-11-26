@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from app.models import RiscoCategoria, StatusAprovacao, TipoPessoa, TipoQualificacao
 
@@ -70,10 +70,8 @@ class CadastroProfissionalEntrada(BaseModel):
     foto_url: str | None = Field(default=None, max_length=255)
     bairro: str = Field(min_length=1, max_length=80)
     logradouro: str | None = Field(default=None, max_length=160)
-    latitude: float | None = Field(
-        default=None, ge=-90, le=90, description="Opcional: deduzida do bairro quando ausente."
-    )
-    longitude: float | None = Field(default=None, ge=-180, le=180)
+    latitude: float = Field(ge=-90, le=90, description="Latitude obrigatória da localização.")
+    longitude: float = Field(ge=-180, le=180, description="Longitude obrigatória da localização.")
     raio_km: int = Field(default=5, ge=1)
     categorias: list[str] = Field(min_length=1, description="Slugs das categorias de atuação.")
     caracteristicas: CaracteristicasEntrada | None = None
@@ -103,21 +101,71 @@ class CadastroProfissionalEntrada(BaseModel):
 
 
 class AtualizacaoProfissionalEntrada(BaseModel):
+    nome: str | None = Field(default=None, min_length=1, max_length=120)
+    cpf: str | None = None
+    data_nascimento: date | None = None
     telefone: str | None = None
     foto_url: str | None = Field(default=None, max_length=255)
+    bairro: str | None = Field(default=None, min_length=1, max_length=80)
+    logradouro: str | None = Field(default=None, max_length=160)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
     raio_km: int | None = Field(default=None, ge=1)
     categorias: list[str] | None = Field(default=None, min_length=1)
     caracteristicas: CaracteristicasEntrada | None = None
+
+    @field_validator("nome")
+    @classmethod
+    def _nome(cls, valor: str | None) -> str | None:
+        if valor is None:
+            return None
+        valor = valor.strip()
+        if not valor:
+            raise ValueError("O nome não pode ficar em branco.")
+        return valor
+
+    @field_validator("cpf")
+    @classmethod
+    def _cpf(cls, valor: str | None) -> str | None:
+        if valor is None:
+            return None
+        digitos = somente_digitos(valor)
+        if not cpf_valido(digitos):
+            raise ValueError("CPF inválido.")
+        return digitos
+
+    @field_validator("data_nascimento")
+    @classmethod
+    def _maior_de_idade(cls, valor: date | None) -> date | None:
+        if valor is None:
+            return None
+        hoje = date.today()
+        idade = hoje.year - valor.year - ((hoje.month, hoje.day) < (valor.month, valor.day))
+        if idade < 18:
+            raise ValueError("É necessário ter 18 anos ou mais.")
+        return valor
 
     @field_validator("telefone")
     @classmethod
     def _tel(cls, valor: str | None) -> str | None:
         return None if valor is None else _telefone(valor)
 
+    @model_validator(mode="after")
+    def _coordenadas_em_par(self):
+        campos = self.model_fields_set
+        if "latitude" in campos or "longitude" in campos:
+            if self.latitude is None or self.longitude is None:
+                raise ValueError("Informe latitude e longitude juntas.")
+        return self
+
 
 class CadastroContratanteEntrada(BaseModel):
     tipo_pessoa: TipoPessoa
-    documento: str | None = Field(default=None, description="CPF (pessoa física) ou CNPJ.")
+    documento: str | None = Field(
+        default=None,
+        description="CPF (pessoa física) ou CNPJ (pessoa jurídica, opcional).",
+        validate_default=True,
+    )
     razao_social: str | None = Field(default=None, max_length=160)
     telefone: str
     selfie_url: str | None = Field(default=None, max_length=255)
@@ -129,19 +177,49 @@ class CadastroContratanteEntrada(BaseModel):
 
     @field_validator("documento")
     @classmethod
+    def _doc(cls, valor: str | None, info: ValidationInfo) -> str | None:
+        tipo_pessoa = info.data.get("tipo_pessoa")
+        if valor is None or not valor.strip():
+            if tipo_pessoa == TipoPessoa.FISICA:
+                raise ValueError("Informe um CPF válido para pessoa física.")
+            return None
+
+        digitos = somente_digitos(valor)
+        if tipo_pessoa == TipoPessoa.FISICA and not cpf_valido(digitos):
+            raise ValueError("CPF inválido.")
+        if tipo_pessoa == TipoPessoa.JURIDICA and not cnpj_valido(digitos):
+            raise ValueError("CNPJ inválido.")
+        return digitos
+
+
+class DadosContratanteEntrada(BaseModel):
+    nome: str | None = Field(default=None, min_length=1, max_length=120)
+    documento: str | None = Field(default=None, max_length=32)
+    razao_social: str | None = Field(default=None, max_length=160)
+    telefone: str | None = None
+    selfie_url: str | None = Field(default=None, max_length=255)
+
+    @field_validator("nome")
+    @classmethod
+    def _nome(cls, valor: str | None) -> str | None:
+        if valor is None:
+            return None
+        valor = valor.strip()
+        if not valor:
+            raise ValueError("O nome não pode ficar em branco.")
+        return valor
+
+    @field_validator("documento")
+    @classmethod
     def _doc(cls, valor: str | None) -> str | None:
         if valor is None or not valor.strip():
             return None
         return somente_digitos(valor)
 
-    @model_validator(mode="after")
-    def _documento_conforme_o_tipo(self):
-        if self.tipo_pessoa == TipoPessoa.FISICA:
-            if not self.documento or not cpf_valido(self.documento):
-                raise ValueError("Informe um CPF válido para pessoa física.")
-        elif self.documento is not None and not cnpj_valido(self.documento):
-            raise ValueError("CNPJ inválido.")
-        return self
+    @field_validator("telefone")
+    @classmethod
+    def _tel(cls, valor: str | None) -> str | None:
+        return None if valor is None else _telefone(valor)
 
 
 class CategoriaDoPerfil(BaseModel):
@@ -177,6 +255,7 @@ class PerfilContratanteDetalhe(BaseModel):
     id: int
     usuario_id: int
     nome: str
+    email: str
     tipo_pessoa: TipoPessoa
     documento: str | None
     razao_social: str | None
@@ -186,6 +265,14 @@ class PerfilContratanteDetalhe(BaseModel):
     verificacao_motivo: str | None
     adicionais_pagos: int = 0
     destaque: bool = False
+    bio: str | None = None
+    bairro: str | None = None
+    horario_contato: str | None = None
+    categorias_interesse: list[str] = Field(default_factory=list)
+    exigir_verificado: bool = False
+    aceita_notificacoes: bool = True
+    cor_destaque: str = "lilas"
+    avatar_url: str | None = None
 
 
 # ---------------------------------------------------------------- verificação

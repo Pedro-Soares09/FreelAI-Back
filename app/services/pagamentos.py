@@ -24,11 +24,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.erros import erro_http
 from app.models import (
     Contrato,
     Conversa,
     Disputa,
+    Endereco,
     EstadoDisputa,
     EstadoPagamento,
     EstadoVaga,
@@ -42,6 +44,7 @@ from app.models import (
     Vaga,
 )
 from app.services import biometria, configuracao, notificacoes
+from app.services.geo import distancia_km
 from app.services.varreduras import varredura
 from app.tempo import agora, como_utc
 
@@ -176,6 +179,16 @@ def _usuario_do_contratante(db: Session, vaga: Vaga) -> int | None:
     return db.scalar(
         select(PerfilContratante.usuario_id).where(PerfilContratante.id == vaga.contratante_id)
     )
+
+
+def _usuario_do_profissional(db: Session, vaga: Vaga) -> int | None:
+    return db.scalar(
+        select(PerfilProfissional.usuario_id).where(PerfilProfissional.id == vaga.profissional_id)
+    )
+
+
+def vaga_endereco(db: Session, vaga: Vaga) -> Endereco:
+    return db.get(Endereco, vaga.endereco_id)
 
 
 def exigir_contratante_dono(db: Session, vaga: Vaga, usuario_id: int) -> None:
@@ -648,6 +661,62 @@ def validar_facial_e_liberar(
     return liberar_integral(db, pagamento)
 
 
+def registrar_checkin(
+    db: Session,
+    vaga: Vaga,
+    usuario_id: int,
+    latitude: float,
+    longitude: float,
+    *,
+    simular_local: bool = False,
+) -> tuple[Vaga, float]:
+    """Check-in do profissional contratado: chegada ao local dentro da janela e do raio.
+
+    Devolve a vaga e a distância em metros. No perfil demo `simular_local` usa o endereço da vaga.
+    """
+    if vaga.profissional_id is None or _usuario_do_profissional(db, vaga) != usuario_id:
+        raise erro_http(
+            status.HTTP_403_FORBIDDEN,
+            "vaga_de_outro_profissional",
+            "Somente o profissional contratado pode fazer o check-in.",
+        )
+    if vaga.estado not in (EstadoVaga.CONTRATADA, EstadoVaga.EM_EXECUCAO):
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "vaga_sem_contratacao",
+            "O check-in só é aceito em uma vaga contratada.",
+            estado_atual=vaga.estado.value,
+        )
+    if vaga.checkin_em is not None:
+        raise erro_http(status.HTTP_409_CONFLICT, "checkin_ja_realizado", "Check-in já registrado.")
+    antecedencia = timedelta(minutes=configuracao.get("checkin_antecedencia_min", db=db))
+    abre_em = como_utc(vaga.inicio_em) - antecedencia
+    if agora() < abre_em:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "checkin_fora_da_janela",
+            "O check-in só abre próximo do horário de início.",
+            abre_em=abre_em.isoformat(),
+        )
+    endereco = vaga_endereco(db, vaga)
+    if simular_local and settings.perfil == "demo":
+        latitude, longitude = endereco.latitude, endereco.longitude
+    metros = distancia_km(latitude, longitude, endereco.latitude, endereco.longitude) * 1000
+    raio = configuracao.get("checkin_raio_m", db=db)
+    if metros > raio:
+        raise erro_http(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "checkin_longe_do_local",
+            f"Você está a {round(metros)} m do local; chegue a até {raio} m para o check-in.",
+            distancia_metros=round(metros),
+            raio_metros=raio,
+        )
+    vaga.checkin_em = agora()
+    db.commit()
+    db.refresh(vaga)
+    return vaga, metros
+
+
 def registrar_falta(db: Session, vaga: Vaga, *, exigir_tolerancia: bool = True) -> Vaga:
     """Falta do profissional: a vaga vai para falta e o valor retido volta ao contratante.
 
@@ -655,6 +724,12 @@ def registrar_falta(db: Session, vaga: Vaga, *, exigir_tolerancia: bool = True) 
     """
     if vaga.estado == EstadoVaga.FALTA:
         return vaga
+    if vaga.checkin_em is not None:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "checkin_realizado",
+            "O profissional fez o check-in; não é possível registrar falta.",
+        )
     if vaga.estado not in (EstadoVaga.CONTRATADA, EstadoVaga.EM_EXECUCAO):
         raise erro_http(
             status.HTTP_409_CONFLICT,

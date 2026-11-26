@@ -74,9 +74,12 @@ def _perfil_resumo(
 ) -> PerfilResumo:
     nota, total = reputacao_do_usuario(db, usuario.id)
     destaque = comprovantes.destaque_do_contratante(db, usuario.id) if contratante else None
+    perfil_cont = usuario.perfil_contratante if contratante else None
     return PerfilResumo(
         usuario_id=usuario.id,
         nome=usuario.nome,
+        foto_url=perfil_cont.avatar_url if perfil_cont is not None else None,
+        cor_destaque=perfil_cont.cor_destaque if perfil_cont is not None else None,
         verificado=verificado,
         novo=novo,
         pro=False,

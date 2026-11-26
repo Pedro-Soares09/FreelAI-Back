@@ -15,6 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from semear_moderacao import semear_moderacao  # noqa: E402
+
 from app.config import settings  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
 from app.models import Categoria, Endereco, Experiencia, Vaga  # noqa: E402
@@ -28,6 +30,7 @@ from app.models.enums import (  # noqa: E402  # noqa: E402
 )
 from app.models.nucleo import PerfilContratante, PerfilProfissional, Usuario  # noqa: E402
 from app.security import hash_password  # noqa: E402
+from app.seed import senha_admin_demo  # noqa: E402
 from app.services import match  # noqa: E402
 
 SENHA_DEMO = "senha-segura-123"
@@ -44,6 +47,7 @@ CONTAS = [
         "email": "admin@example.com",
         "papel": PapelUsuario.ADMIN,
         "perfis": False,
+        "admin": True,
     },
 ]
 
@@ -54,7 +58,7 @@ def _obter_ou_criar(db, dados) -> Usuario:
         usuario = Usuario(
             nome=dados["nome"],
             email=dados["email"],
-            senha_hash=hash_password(SENHA_DEMO),
+            senha_hash=hash_password(senha_admin_demo() if dados.get("admin") else SENHA_DEMO),
         )
         db.add(usuario)
         db.flush()
@@ -178,6 +182,12 @@ def semear_marketplace(db) -> None:
     maria.perfil_ativo = TipoPerfil.CONTRATANTE
     db.flush()
     db.refresh(maria)
+    maria.perfil_contratante.bio = (
+        "Organizo a casa e contrato serviços pontuais. Prefiro combinar tudo pelo chat."
+    )
+    maria.perfil_contratante.bairro = "Boa Viagem"
+    maria.perfil_contratante.horario_contato = "Seg a sex, 18h às 21h"
+    maria.perfil_contratante.cor_destaque = "lilas"
 
     # A Ana também tem endereço e categorias, para receber convites e ver o mapa.
     ana = db.query(Usuario).filter_by(email="ana@example.com").one()
@@ -225,6 +235,7 @@ def semear_marketplace(db) -> None:
             db.flush()
             match.gerar_rodada(db, vaga)
     db.commit()
+    semear_moderacao(db, por_slug)
 
 
 def main() -> int:
@@ -260,10 +271,13 @@ def main() -> int:
     finally:
         db.close()
 
-    print(f"Contas de demonstração prontas (senha: {SENHA_DEMO}):")
+    print(f"Contas de demonstração prontas (senha: {SENHA_DEMO}, exceto o administrador):")
     for dados in CONTAS:
         print(f"  {dados['email']} ({dados['papel'].value})")
+    print("  A senha do administrador vem de SENHA_ADMIN_DEMO.")
     print("  maria@example.com (contratante), carlos/bruna/diego/elisa@example.com (profissionais)")
+    print("  Moderação: rafael.lima (banido), tiago.alves, patricia.nunes (profissionais)")
+    print("             juliana.prado, marcos.teles, helena.duarte, roberto.cunha (contratantes)")
     return 0
 
 

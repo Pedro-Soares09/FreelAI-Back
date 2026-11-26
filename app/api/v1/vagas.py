@@ -116,13 +116,15 @@ def _resumo_contratante(db: Session, contratante: PerfilContratante) -> Contrata
     destaque = comprovantes.destaque_do_contratante(db, contratante.usuario_id)
     return ContratanteResumo(
         id=str(contratante.id),
+        usuario_id=contratante.usuario_id,
         nome=contratante.razao_social or usuario.nome,
-        foto_url=contratante.selfie_url,
+        foto_url=contratante.avatar_url,
         verificado=contratante.verificado,
         nota_media=nota,
         total_avaliacoes=total,
         adicionais_pagos=destaque.adicionais_pagos,
         destaque=destaque.destaque,
+        cor_destaque=contratante.cor_destaque,
     )
 
 
@@ -187,6 +189,8 @@ def _vaga_para_front(
         status=STATUS_VAGA[vaga.estado],
         contratante=_resumo_contratante(db, contratante),
         meu_convite=_convite_para_front(convite) if convite else None,
+        checkin_realizado_em=como_utc(vaga.checkin_em) if vaga.checkin_em else None,
+        falta_registrada=vaga.estado == EstadoVaga.FALTA,
     )
 
 

@@ -3,7 +3,9 @@ from app.models.contratacao import (  # noqa: F401
     AceiteTermos,
     Advertencia,
     Avaliacao,
+    BloqueioAgenda,
     ComprovantePagamento,
+    ContestacaoConta,
     Contrato,
     Conversa,
     Convite,
@@ -13,6 +15,7 @@ from app.models.contratacao import (  # noqa: F401
     Mensagem,
     Notificacao,
     Pagamento,
+    SancaoConta,
     TentativaContato,
     Vaga,
 )

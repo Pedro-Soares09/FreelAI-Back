@@ -155,8 +155,192 @@
         "title": "AssinaturaProDetalhe",
         "type": "object"
       },
+      "AtualizacaoContratanteEntrada": {
+        "description": "Dados cadastrais e personalização do perfil; só o que for enviado é alterado.",
+        "properties": {
+          "aceita_notificacoes": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aceita Notificacoes"
+          },
+          "avatar_arquivo_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Arquivo do tipo foto já enviado; 0 remove o avatar.",
+            "title": "Avatar Arquivo Id"
+          },
+          "bairro": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bairro"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "categorias_interesse": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categorias Interesse"
+          },
+          "cor_destaque": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lilas",
+                  "azul",
+                  "verde",
+                  "rosa",
+                  "laranja",
+                  "grafite"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cor Destaque"
+          },
+          "documento": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Documento"
+          },
+          "exigir_verificado": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exigir Verificado"
+          },
+          "horario_contato": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horario Contato"
+          },
+          "nome": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome"
+          },
+          "razao_social": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Razao Social"
+          },
+          "selfie_url": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selfie Url"
+          },
+          "telefone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefone"
+          }
+        },
+        "title": "AtualizacaoContratanteEntrada",
+        "type": "object"
+      },
       "AtualizacaoProfissionalEntrada": {
         "properties": {
+          "bairro": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bairro"
+          },
           "caracteristicas": {
             "anyOf": [
               {
@@ -182,6 +366,29 @@
             ],
             "title": "Categorias"
           },
+          "cpf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpf"
+          },
+          "data_nascimento": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Nascimento"
+          },
           "foto_url": {
             "anyOf": [
               {
@@ -193,6 +400,57 @@
               }
             ],
             "title": "Foto Url"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": -90.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "logradouro": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logradouro"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "maximum": 180.0,
+                "minimum": -180.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "nome": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome"
           },
           "raio_km": {
             "anyOf": [
@@ -339,6 +597,46 @@
         "title": "AvaliacaoEntrada",
         "type": "object"
       },
+      "AvaliacaoPublica": {
+        "properties": {
+          "avaliador_nome": {
+            "title": "Avaliador Nome",
+            "type": "string"
+          },
+          "comentario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comentario"
+          },
+          "criado_em": {
+            "format": "date-time",
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "nota": {
+            "title": "Nota",
+            "type": "integer"
+          },
+          "vaga_titulo": {
+            "title": "Vaga Titulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nota",
+          "avaliador_nome",
+          "vaga_titulo",
+          "criado_em"
+        ],
+        "title": "AvaliacaoPublica",
+        "type": "object"
+      },
       "AvaliacoesDaVaga": {
         "description": "Estado das avaliações de uma vaga para quem consulta.",
         "examples": [
@@ -425,6 +723,74 @@
           "avaliacoes"
         ],
         "title": "AvaliacoesDaVaga",
+        "type": "object"
+      },
+      "BloqueioDaAgenda": {
+        "properties": {
+          "fim": {
+            "format": "date-time",
+            "title": "Fim",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "inicio": {
+            "format": "date-time",
+            "title": "Inicio",
+            "type": "string"
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo"
+          }
+        },
+        "required": [
+          "id",
+          "inicio",
+          "fim"
+        ],
+        "title": "BloqueioDaAgenda",
+        "type": "object"
+      },
+      "BloqueioEntrada": {
+        "properties": {
+          "fim": {
+            "format": "date-time",
+            "title": "Fim",
+            "type": "string"
+          },
+          "inicio": {
+            "format": "date-time",
+            "title": "Inicio",
+            "type": "string"
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo"
+          }
+        },
+        "required": [
+          "inicio",
+          "fim"
+        ],
+        "title": "BloqueioEntrada",
         "type": "object"
       },
       "Body_arquivos_enviar_arquivo": {
@@ -532,7 +898,7 @@
                 "type": "null"
               }
             ],
-            "description": "CPF (pessoa física) ou CNPJ.",
+            "description": "CPF (pessoa física) ou CNPJ (pessoa jurídica, opcional).",
             "title": "Documento"
           },
           "razao_social": {
@@ -630,18 +996,11 @@
             "title": "Foto Url"
           },
           "latitude": {
-            "anyOf": [
-              {
-                "maximum": 90.0,
-                "minimum": -90.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opcional: deduzida do bairro quando ausente.",
-            "title": "Latitude"
+            "description": "Latitude obrigatória da localização.",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
           },
           "logradouro": {
             "anyOf": [
@@ -656,17 +1015,11 @@
             "title": "Logradouro"
           },
           "longitude": {
-            "anyOf": [
-              {
-                "maximum": 180.0,
-                "minimum": -180.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Longitude"
+            "description": "Longitude obrigatória da localização.",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
           },
           "raio_km": {
             "default": 5,
@@ -684,9 +1037,66 @@
           "data_nascimento",
           "telefone",
           "bairro",
+          "latitude",
+          "longitude",
           "categorias"
         ],
         "title": "CadastroProfissionalEntrada",
+        "type": "object"
+      },
+      "CancelamentoEntrada": {
+        "properties": {
+          "motivo": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Motivo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "motivo"
+        ],
+        "title": "CancelamentoEntrada",
+        "type": "object"
+      },
+      "CancelamentoResposta": {
+        "properties": {
+          "advertencia_aplicada": {
+            "title": "Advertencia Aplicada",
+            "type": "boolean"
+          },
+          "advertencias_no_periodo": {
+            "title": "Advertencias No Periodo",
+            "type": "integer"
+          },
+          "estado": {
+            "title": "Estado",
+            "type": "string"
+          },
+          "suspensa_ate": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suspensa Ate"
+          },
+          "valor_estornado": {
+            "title": "Valor Estornado",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "estado",
+          "advertencia_aplicada",
+          "advertencias_no_periodo",
+          "valor_estornado"
+        ],
+        "title": "CancelamentoResposta",
         "type": "object"
       },
       "CaracteristicasEntrada": {
@@ -735,6 +1145,24 @@
         "title": "CaracteristicasEntrada",
         "type": "object"
       },
+      "CategoriaDeInteresse": {
+        "properties": {
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "nome"
+        ],
+        "title": "CategoriaDeInteresse",
+        "type": "object"
+      },
       "CategoriaDoPerfil": {
         "properties": {
           "nivel_risco": {
@@ -769,6 +1197,28 @@
           "pendencias"
         ],
         "title": "CategoriaDoPerfil",
+        "type": "object"
+      },
+      "CategoriaPublica": {
+        "properties": {
+          "nivel_risco": {
+            "$ref": "#/components/schemas/RiscoCategoria"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "nome",
+          "nivel_risco"
+        ],
+        "title": "CategoriaPublica",
         "type": "object"
       },
       "CategoriaResumo": {
@@ -838,6 +1288,58 @@
           "itens"
         ],
         "title": "CentralNotificacoes",
+        "type": "object"
+      },
+      "CheckinEntrada": {
+        "properties": {
+          "latitude": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          },
+          "simular_local": {
+            "default": false,
+            "description": "Só no perfil demo: usa o endereço da vaga como posição.",
+            "title": "Simular Local",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "title": "CheckinEntrada",
+        "type": "object"
+      },
+      "CheckinResposta": {
+        "properties": {
+          "checkin_em": {
+            "format": "date-time",
+            "title": "Checkin Em",
+            "type": "string"
+          },
+          "distancia_metros": {
+            "title": "Distancia Metros",
+            "type": "number"
+          },
+          "mensagem": {
+            "title": "Mensagem",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mensagem",
+          "distancia_metros",
+          "checkin_em"
+        ],
+        "title": "CheckinResposta",
         "type": "object"
       },
       "ComprovacaoDetalhe": {
@@ -1019,12 +1521,182 @@
         "title": "ContagemNaoLidas",
         "type": "object"
       },
+      "ContestacaoDaFila": {
+        "properties": {
+          "aceita": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aceita"
+          },
+          "criada_em": {
+            "format": "date-time",
+            "title": "Criada Em",
+            "type": "string"
+          },
+          "decidida_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidida Em"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "motivo_decisao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Decisao"
+          },
+          "sancao_motivo": {
+            "title": "Sancao Motivo",
+            "type": "string"
+          },
+          "sancao_tipo": {
+            "title": "Sancao Tipo",
+            "type": "string"
+          },
+          "texto": {
+            "title": "Texto",
+            "type": "string"
+          },
+          "usuario_id": {
+            "title": "Usuario Id",
+            "type": "integer"
+          },
+          "usuario_nome": {
+            "title": "Usuario Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "usuario_id",
+          "usuario_nome",
+          "sancao_tipo",
+          "sancao_motivo",
+          "texto",
+          "criada_em"
+        ],
+        "title": "ContestacaoDaFila",
+        "type": "object"
+      },
+      "ContestacaoDetalhe": {
+        "properties": {
+          "aceita": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aceita"
+          },
+          "criada_em": {
+            "format": "date-time",
+            "title": "Criada Em",
+            "type": "string"
+          },
+          "decidida_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidida Em"
+          },
+          "motivo_decisao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Decisao"
+          },
+          "texto": {
+            "title": "Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "texto",
+          "criada_em"
+        ],
+        "title": "ContestacaoDetalhe",
+        "type": "object"
+      },
+      "ContestacaoEntrada": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "senha": {
+            "maxLength": 72,
+            "minLength": 1,
+            "title": "Senha",
+            "type": "string"
+          },
+          "texto": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "title": "Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "senha",
+          "texto"
+        ],
+        "title": "ContestacaoEntrada",
+        "type": "object"
+      },
       "ContratanteResumo": {
         "properties": {
           "adicionais_pagos": {
             "default": 0,
             "title": "Adicionais Pagos",
             "type": "integer"
+          },
+          "cor_destaque": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cor Destaque"
           },
           "destaque": {
             "default": false,
@@ -1062,6 +1734,17 @@
           "total_avaliacoes": {
             "title": "Total Avaliacoes",
             "type": "integer"
+          },
+          "usuario_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usuario Id"
           },
           "verificado": {
             "title": "Verificado",
@@ -1444,6 +2127,26 @@
         "title": "DecisaoAprovacaoEntrada",
         "type": "object"
       },
+      "DecisaoContestacaoEntrada": {
+        "properties": {
+          "aceita": {
+            "title": "Aceita",
+            "type": "boolean"
+          },
+          "motivo": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Motivo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "aceita",
+          "motivo"
+        ],
+        "title": "DecisaoContestacaoEntrada",
+        "type": "object"
+      },
       "DecisaoDenunciaEntrada": {
         "description": "Decisão administrativa sobre uma denúncia aberta (procedente ou improcedente + motivo).",
         "properties": {
@@ -1713,6 +2416,17 @@
             "title": "Denunciado Id",
             "type": "integer"
           },
+          "denunciado_nome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denunciado Nome"
+          },
           "denunciante_id": {
             "anyOf": [
               {
@@ -1724,6 +2438,17 @@
             ],
             "description": "Autor da denúncia (nulo quando gerada automaticamente pelo chat).",
             "title": "Denunciante Id"
+          },
+          "denunciante_nome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denunciante Nome"
           },
           "denuncias_procedentes_acumuladas": {
             "default": 0,
@@ -1904,8 +2629,7 @@
         "properties": {
           "bloqueios": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/BloqueioDaAgenda"
             },
             "title": "Bloqueios",
             "type": "array"
@@ -2052,6 +2776,17 @@
             "title": "Chat",
             "type": "array"
           },
+          "contratante_nome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contratante Nome"
+          },
           "contratante_usuario_id": {
             "title": "Contratante Usuario Id",
             "type": "integer"
@@ -2124,6 +2859,17 @@
               }
             ],
             "title": "Percentual Reembolso"
+          },
+          "profissional_nome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profissional Nome"
           },
           "profissional_usuario_id": {
             "anyOf": [
@@ -2974,6 +3720,21 @@
         "title": "MensagemResumo",
         "type": "object"
       },
+      "MotivoEntrada": {
+        "properties": {
+          "motivo": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Motivo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "motivo"
+        ],
+        "title": "MotivoEntrada",
+        "type": "object"
+      },
       "NotificacaoDetalhe": {
         "description": "Notificação já visível ao usuário na central do aplicativo.",
         "examples": [
@@ -3332,10 +4093,60 @@
       },
       "PerfilContratanteDetalhe": {
         "properties": {
+          "aceita_notificacoes": {
+            "default": true,
+            "title": "Aceita Notificacoes",
+            "type": "boolean"
+          },
           "adicionais_pagos": {
             "default": 0,
             "title": "Adicionais Pagos",
             "type": "integer"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "bairro": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bairro"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "categorias_interesse": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Categorias Interesse",
+            "type": "array"
+          },
+          "cor_destaque": {
+            "default": "lilas",
+            "title": "Cor Destaque",
+            "type": "string"
           },
           "destaque": {
             "default": false,
@@ -3352,6 +4163,26 @@
               }
             ],
             "title": "Documento"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "exigir_verificado": {
+            "default": false,
+            "title": "Exigir Verificado",
+            "type": "boolean"
+          },
+          "horario_contato": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horario Contato"
           },
           "id": {
             "title": "Id",
@@ -3420,6 +4251,7 @@
           "id",
           "usuario_id",
           "nome",
+          "email",
           "tipo_pessoa",
           "documento",
           "razao_social",
@@ -3567,6 +4399,252 @@
         "title": "PerfilProfissionalDetalhe",
         "type": "object"
       },
+      "PerfilPublicoContratante": {
+        "description": "Visão pública do contratante, sem documento, telefone, selfie nem e-mail.",
+        "properties": {
+          "adicionais_pagos": {
+            "default": 0,
+            "title": "Adicionais Pagos",
+            "type": "integer"
+          },
+          "avaliacoes": {
+            "items": {
+              "$ref": "#/components/schemas/AvaliacaoPublica"
+            },
+            "title": "Avaliacoes",
+            "type": "array"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "bairro": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bairro"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "categorias_interesse": {
+            "items": {
+              "$ref": "#/components/schemas/CategoriaDeInteresse"
+            },
+            "title": "Categorias Interesse",
+            "type": "array"
+          },
+          "cor_destaque": {
+            "default": "lilas",
+            "title": "Cor Destaque",
+            "type": "string"
+          },
+          "destaque": {
+            "default": false,
+            "title": "Destaque",
+            "type": "boolean"
+          },
+          "exigir_verificado": {
+            "default": false,
+            "title": "Exigir Verificado",
+            "type": "boolean"
+          },
+          "horario_contato": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horario Contato"
+          },
+          "membro_desde": {
+            "format": "date-time",
+            "title": "Membro Desde",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "nota_media": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nota Media"
+          },
+          "servicos_concluidos": {
+            "default": 0,
+            "title": "Servicos Concluidos",
+            "type": "integer"
+          },
+          "tipo_pessoa": {
+            "$ref": "#/components/schemas/TipoPessoa"
+          },
+          "total_avaliacoes": {
+            "default": 0,
+            "title": "Total Avaliacoes",
+            "type": "integer"
+          },
+          "usuario_id": {
+            "title": "Usuario Id",
+            "type": "integer"
+          },
+          "vagas_publicadas": {
+            "default": 0,
+            "title": "Vagas Publicadas",
+            "type": "integer"
+          },
+          "verificado": {
+            "title": "Verificado",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "usuario_id",
+          "nome",
+          "tipo_pessoa",
+          "verificado",
+          "membro_desde"
+        ],
+        "title": "PerfilPublicoContratante",
+        "type": "object"
+      },
+      "PerfilPublicoProfissional": {
+        "description": "Não expõe CPF, telefone, endereço exato nem arquivos de verificação.",
+        "properties": {
+          "avaliacoes": {
+            "items": {
+              "$ref": "#/components/schemas/AvaliacaoPublica"
+            },
+            "title": "Avaliacoes",
+            "type": "array"
+          },
+          "bairro": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bairro"
+          },
+          "caracteristicas": {
+            "$ref": "#/components/schemas/CaracteristicasEntrada"
+          },
+          "categorias": {
+            "items": {
+              "$ref": "#/components/schemas/CategoriaPublica"
+            },
+            "title": "Categorias",
+            "type": "array"
+          },
+          "foto_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Foto Url"
+          },
+          "membro_desde": {
+            "format": "date-time",
+            "title": "Membro Desde",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "nota_media": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nota Media"
+          },
+          "novo": {
+            "description": "Selo Novo enquanto tiver até 5 serviços concluídos.",
+            "title": "Novo",
+            "type": "boolean"
+          },
+          "pro": {
+            "title": "Pro",
+            "type": "boolean"
+          },
+          "reputacao": {
+            "description": "Nota final de 0 a 5 pela fórmula de reputação.",
+            "title": "Reputacao",
+            "type": "number"
+          },
+          "servicos_concluidos": {
+            "default": 0,
+            "title": "Servicos Concluidos",
+            "type": "integer"
+          },
+          "total_avaliacoes": {
+            "default": 0,
+            "title": "Total Avaliacoes",
+            "type": "integer"
+          },
+          "usuario_id": {
+            "title": "Usuario Id",
+            "type": "integer"
+          },
+          "verificado": {
+            "title": "Verificado",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "usuario_id",
+          "nome",
+          "caracteristicas",
+          "verificado",
+          "pro",
+          "reputacao",
+          "novo",
+          "membro_desde"
+        ],
+        "title": "PerfilPublicoProfissional",
+        "type": "object"
+      },
       "PerfilResumo": {
         "description": "Dados públicos de um perfil, exibidos em cards, listas e no chat.",
         "properties": {
@@ -3575,6 +4653,18 @@
             "description": "Horas extras e bônus pagos (só contratantes).",
             "title": "Adicionais Pagos",
             "type": "integer"
+          },
+          "cor_destaque": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cor de destaque escolhida pelo contratante.",
+            "title": "Cor Destaque"
           },
           "destaque": {
             "default": false,
@@ -3732,6 +4822,44 @@
           "bairro"
         ],
         "title": "PontoMapa",
+        "type": "object"
+      },
+      "PreviaCancelamento": {
+        "properties": {
+          "advertencias_no_periodo": {
+            "title": "Advertencias No Periodo",
+            "type": "integer"
+          },
+          "advertencias_para_suspensao": {
+            "title": "Advertencias Para Suspensao",
+            "type": "integer"
+          },
+          "gera_advertencia": {
+            "title": "Gera Advertencia",
+            "type": "boolean"
+          },
+          "horas_para_inicio": {
+            "title": "Horas Para Inicio",
+            "type": "number"
+          },
+          "limite_horas": {
+            "title": "Limite Horas",
+            "type": "number"
+          },
+          "pode_cancelar": {
+            "title": "Pode Cancelar",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pode_cancelar",
+          "gera_advertencia",
+          "limite_horas",
+          "horas_para_inicio",
+          "advertencias_no_periodo",
+          "advertencias_para_suspensao"
+        ],
+        "title": "PreviaCancelamento",
         "type": "object"
       },
       "ProfissionalRecomendado": {
@@ -4238,6 +5366,151 @@
         "title": "RiscoCategoria",
         "type": "string"
       },
+      "SancaoDaFila": {
+        "properties": {
+          "ativa": {
+            "title": "Ativa",
+            "type": "boolean"
+          },
+          "contestada": {
+            "title": "Contestada",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "inicio_em": {
+            "format": "date-time",
+            "title": "Inicio Em",
+            "type": "string"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "origem": {
+            "title": "Origem",
+            "type": "string"
+          },
+          "retorno_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retorno Em"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          },
+          "usuario_email": {
+            "title": "Usuario Email",
+            "type": "string"
+          },
+          "usuario_id": {
+            "title": "Usuario Id",
+            "type": "integer"
+          },
+          "usuario_nome": {
+            "title": "Usuario Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "usuario_id",
+          "usuario_nome",
+          "usuario_email",
+          "tipo",
+          "origem",
+          "motivo",
+          "inicio_em",
+          "ativa",
+          "contestada"
+        ],
+        "title": "SancaoDaFila",
+        "type": "object"
+      },
+      "SancaoDetalhe": {
+        "properties": {
+          "contestavel_ate": {
+            "format": "date-time",
+            "title": "Contestavel Ate",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "inicio_em": {
+            "format": "date-time",
+            "title": "Inicio Em",
+            "type": "string"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "pode_contestar": {
+            "title": "Pode Contestar",
+            "type": "boolean"
+          },
+          "retorno_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retorno Em"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tipo",
+          "motivo",
+          "inicio_em",
+          "contestavel_ate",
+          "pode_contestar"
+        ],
+        "title": "SancaoDetalhe",
+        "type": "object"
+      },
+      "SancaoManualEntrada": {
+        "properties": {
+          "dias": {
+            "default": 30,
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Dias",
+            "type": "integer"
+          },
+          "motivo": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Motivo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "motivo"
+        ],
+        "title": "SancaoManualEntrada",
+        "type": "object"
+      },
       "SegurancaDaCategoria": {
         "properties": {
           "checklist": {
@@ -4284,6 +5557,39 @@
           "checklist"
         ],
         "title": "SegurancaDaCategoria",
+        "type": "object"
+      },
+      "SituacaoDaConta": {
+        "properties": {
+          "contestacao": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContestacaoDetalhe"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estado": {
+            "title": "Estado",
+            "type": "string"
+          },
+          "sancao": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SancaoDetalhe"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "estado"
+        ],
+        "title": "SituacaoDaConta",
         "type": "object"
       },
       "SituacaoTermos": {
@@ -4708,6 +6014,18 @@
             "title": "Categoria",
             "type": "string"
           },
+          "checkin_realizado_em": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin Realizado Em"
+          },
           "contratante": {
             "$ref": "#/components/schemas/ContratanteResumo"
           },
@@ -4738,6 +6056,11 @@
               }
             ],
             "title": "Endereco Completo"
+          },
+          "falta_registrada": {
+            "default": false,
+            "title": "Falta Registrada",
+            "type": "boolean"
           },
           "id": {
             "title": "Id",
@@ -5115,6 +6438,120 @@
         ]
       }
     },
+    "/api/v1/admin/contestacoes": {
+      "get": {
+        "operationId": "admin_listar_contestacoes",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "estado",
+            "required": false,
+            "schema": {
+              "default": "abertas",
+              "enum": [
+                "abertas",
+                "decididas"
+              ],
+              "title": "Estado",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ContestacaoDaFila"
+                  },
+                  "title": "Response Admin Listar Contestacoes",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Contestacoes",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/contestacoes/{contestacao_id}/decisao": {
+      "post": {
+        "description": "Aceita (reativa a conta) ou recusa a contestação, com motivo.",
+        "operationId": "admin_decidir_contestacao",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contestacao_id",
+            "required": true,
+            "schema": {
+              "title": "Contestacao Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisaoContestacaoEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContestacaoDaFila"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Decidir Contestacao",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/denuncias": {
       "get": {
         "description": "Fila de denúncias (manuais e automáticas) com tempo em espera e meta de 48h úteis.",
@@ -5440,6 +6877,216 @@
         ]
       }
     },
+    "/api/v1/admin/sancoes": {
+      "get": {
+        "description": "Suspensões e banimentos; por padrão só os vigentes.",
+        "operationId": "admin_listar_sancoes",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ativas",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Ativas",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SancaoDaFila"
+                  },
+                  "title": "Response Admin Listar Sancoes",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Sancoes",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/usuarios/{usuario_id}/banimento": {
+      "post": {
+        "description": "Bane a conta de forma permanente, com motivo.",
+        "operationId": "admin_banir_usuario",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "usuario_id",
+            "required": true,
+            "schema": {
+              "title": "Usuario Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MotivoEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SancaoDaFila"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Banir Usuario",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/usuarios/{usuario_id}/reativacao": {
+      "post": {
+        "description": "Encerra a sanção vigente e devolve a conta ao estado ativo.",
+        "operationId": "admin_reativar_usuario",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "usuario_id",
+            "required": true,
+            "schema": {
+              "title": "Usuario Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reativar Usuario",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/usuarios/{usuario_id}/suspensao": {
+      "post": {
+        "description": "Suspende a conta por alguns dias, com motivo.",
+        "operationId": "admin_suspender_usuario",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "usuario_id",
+            "required": true,
+            "schema": {
+              "title": "Usuario Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SancaoManualEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SancaoDaFila"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Suspender Usuario",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/arquivos": {
       "post": {
         "description": "Valida tipo (jpg, png, pdf) e tamanho (até 10 MB), armazena com nome gerado e retorna URL.",
@@ -5619,6 +7266,48 @@
         "summary": "Cancelar",
         "tags": [
           "conta"
+        ]
+      }
+    },
+    "/api/v1/auth/contestacao": {
+      "post": {
+        "description": "Envia a contestação da sanção vigente (uma por caso, dentro do prazo).",
+        "operationId": "sancoes_contestar_sancao",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContestacaoEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SituacaoDaConta"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Contestar Sancao",
+        "tags": [
+          "sancoes"
         ]
       }
     },
@@ -5817,6 +7506,48 @@
         "summary": "Registrar",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sancao": {
+      "post": {
+        "description": "Situação da conta bloqueada: motivo, data de retorno e andamento da contestação.",
+        "operationId": "sancoes_consultar_sancao",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SituacaoDaConta"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consultar Sancao",
+        "tags": [
+          "sancoes"
         ]
       }
     },
@@ -6056,6 +7787,54 @@
         "summary": "Escolher Profissional",
         "tags": [
           "vagas"
+        ]
+      }
+    },
+    "/api/v1/contratantes/{usuario_id}/perfil": {
+      "get": {
+        "description": "Visão pública do contratante, sem dados sensíveis, para quem está logado.",
+        "operationId": "perfis_consultar_perfil_publico_do_contratante",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "usuario_id",
+            "required": true,
+            "schema": {
+              "title": "Usuario Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerfilPublicoContratante"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Consultar Perfil Publico Do Contratante",
+        "tags": [
+          "perfis"
         ]
       }
     },
@@ -7004,6 +8783,51 @@
         "tags": [
           "perfis"
         ]
+      },
+      "patch": {
+        "description": "Edita dados cadastrais e a personalização (bio, cor, avatar, preferências).",
+        "operationId": "perfis_atualizar_meu_perfil_contratante",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AtualizacaoContratanteEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerfilContratanteDetalhe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Atualizar Meu Perfil Contratante",
+        "tags": [
+          "perfis"
+        ]
       }
     },
     "/api/v1/perfis/profissional": {
@@ -7123,6 +8947,170 @@
         ]
       }
     },
+    "/api/v1/profissionais/{usuario_id}/perfil": {
+      "get": {
+        "description": "Visão pública do profissional, sem dados sensíveis, para quem está logado.",
+        "operationId": "perfis_consultar_perfil_publico_do_profissional",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "usuario_id",
+            "required": true,
+            "schema": {
+              "title": "Usuario Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerfilPublicoProfissional"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Consultar Perfil Publico Do Profissional",
+        "tags": [
+          "perfis"
+        ]
+      }
+    },
+    "/api/v1/profissional/agenda/bloqueios": {
+      "get": {
+        "description": "Períodos bloqueados que ainda não terminaram.",
+        "operationId": "profissional_listar_bloqueios",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BloqueioDaAgenda"
+                  },
+                  "title": "Response Profissional Listar Bloqueios",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listar Bloqueios",
+        "tags": [
+          "profissional"
+        ]
+      },
+      "post": {
+        "description": "Bloqueia um período: o profissional não recebe convites que o atravessem.",
+        "operationId": "profissional_criar_bloqueio",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BloqueioEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BloqueioDaAgenda"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Criar Bloqueio",
+        "tags": [
+          "profissional"
+        ]
+      }
+    },
+    "/api/v1/profissional/agenda/bloqueios/{bloqueio_id}": {
+      "delete": {
+        "operationId": "profissional_remover_bloqueio",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bloqueio_id",
+            "required": true,
+            "schema": {
+              "title": "Bloqueio Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Remover Bloqueio",
+        "tags": [
+          "profissional"
+        ]
+      }
+    },
     "/api/v1/profissional/comprovacoes": {
       "get": {
         "description": "Experiências, qualificações e EPIs enviados, com o status de cada um.",
@@ -7187,7 +9175,7 @@
     },
     "/api/v1/profissional/disponibilidade": {
       "get": {
-        "description": "Situação atual do modo Disponível agora e do raio de busca.",
+        "description": "Situação atual do modo Disponível agora, do raio de busca e da agenda.",
         "operationId": "profissional_consultar_disponibilidade",
         "responses": {
           "200": {
@@ -8044,6 +10032,168 @@
         "summary": "Avaliar Vaga",
         "tags": [
           "avaliacoes"
+        ]
+      }
+    },
+    "/api/v1/vagas/{vaga_id}/cancelamento": {
+      "get": {
+        "description": "Mostra se a vaga pode ser cancelada agora e se isso gera advertência.",
+        "operationId": "cancelamento_consultar_cancelamento",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviaCancelamento"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Consultar Cancelamento",
+        "tags": [
+          "cancelamento"
+        ]
+      },
+      "post": {
+        "description": "Cancela a vaga; cancelamento tardio gera advertência e pode suspender a conta.",
+        "operationId": "cancelamento_cancelar_vaga",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelamentoEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelamentoResposta"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Cancelar Vaga",
+        "tags": [
+          "cancelamento"
+        ]
+      }
+    },
+    "/api/v1/vagas/{vaga_id}/checkin": {
+      "post": {
+        "description": "O profissional contratado confirma a chegada ao local, dentro da janela e do raio.",
+        "operationId": "pagamentos_fazer_checkin",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vaga_id",
+            "required": true,
+            "schema": {
+              "title": "Vaga Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckinEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckinResposta"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Fazer Checkin",
+        "tags": [
+          "pagamentos"
         ]
       }
     },

@@ -38,7 +38,7 @@ from app.models import (
     Usuario,
     Vaga,
 )
-from app.services import configuracao, notificacoes
+from app.services import configuracao, notificacoes, sancoes
 from app.tempo import agora, como_utc
 
 META_FILA_HORAS_UTEIS = 48
@@ -275,10 +275,15 @@ def montar_item_fila_admin(
             procedentes_cache[denuncia.denunciado_id] = procedentes
 
     denunciado = db.get(Usuario, denuncia.denunciado_id)
+    denunciante = (
+        db.get(Usuario, denuncia.denunciante_id) if denuncia.denunciante_id is not None else None
+    )
     return DenunciaFilaAdmin(
         id=denuncia.id,
         denunciante_id=denuncia.denunciante_id,
+        denunciante_nome=denunciante.nome if denunciante is not None else None,
         denunciado_id=denuncia.denunciado_id,
+        denunciado_nome=denunciado.nome if denunciado is not None else None,
         vaga_id=denuncia.vaga_id,
         conversa_id=denuncia.conversa_id,
         origem=denuncia.origem,
@@ -328,8 +333,13 @@ def _banir_se_atingiu_limite(db: Session, denunciado_id: int) -> tuple[int, int,
     if penalidades >= limite:
         usuario = db.get(Usuario, denunciado_id)
         if usuario is not None:
-            usuario.estado = EstadoConta.BANIDA
-            usuario.suspensa_ate = None
+            sancoes.banir(
+                db,
+                usuario,
+                motivo=f"{penalidades} denúncias procedentes.",
+                origem="denuncias",
+                commit=False,
+            )
             banido = True
     return penalidades, limite, banido
 
