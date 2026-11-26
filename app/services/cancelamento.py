@@ -121,7 +121,9 @@ def cancelar(db: Session, vaga: Vaga, usuario: Usuario, motivo: str) -> dict:
     pagamento = pagamentos.pagamento_da_vaga(db, vaga)
     estornado = False
     if pagamento is not None and pagamento.estado == EstadoPagamento.RETIDO:
-        pagamentos.estornar_integral(db, pagamento, estado_vaga=EstadoVaga.CANCELADA)
+        pagamentos.estornar_integral(
+            db, pagamento, estado_vaga=EstadoVaga.CANCELADA, commit=False
+        )
         estornado = True
     elif pagamento is not None and pagamento.estado == EstadoPagamento.AGUARDANDO:
         pagamento.estado = EstadoPagamento.EXPIRADO

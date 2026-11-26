@@ -248,6 +248,22 @@ def atualizar_perfil_profissional(
 ) -> PerfilProfissional:
     dados = entrada.model_dump(exclude_unset=True)
 
+    if perfil.verificacao == StatusAprovacao.APROVADO:
+        mudou_identidade = (
+            (dados.get("nome") is not None and dados["nome"] != perfil.usuario.nome)
+            or (dados.get("cpf") is not None and dados["cpf"] != perfil.cpf)
+            or (
+                dados.get("data_nascimento") is not None
+                and dados["data_nascimento"] != perfil.data_nascimento
+            )
+        )
+        if mudou_identidade:
+            raise erro_http(
+                status.HTTP_409_CONFLICT,
+                "identidade_verificada",
+                "Nome, CPF e data de nascimento não podem ser alterados depois da verificação.",
+            )
+
     if dados.get("nome") is not None:
         perfil.usuario.nome = dados["nome"]
 

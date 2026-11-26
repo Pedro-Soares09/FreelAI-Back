@@ -67,6 +67,16 @@ def varreduras_automaticas_desligadas(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def limite_de_credenciais_desligado(monkeypatch):
+    """O limite de tentativas fica desligado nos testes; os testes dele o ligam."""
+    from app.config import settings
+    from app.services import limitador
+
+    monkeypatch.setattr(settings, "limite_credenciais_ativo", False)
+    limitador.limpar()
+
+
+@pytest.fixture(autouse=True)
 def pasta_uploads_isolada(tmp_path, monkeypatch):
     """Direciona os uploads de cada teste para um diretório temporário descartado ao fim."""
     from app.config import settings

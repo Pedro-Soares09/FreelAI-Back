@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.v1.schemas.auth import (
@@ -12,20 +12,26 @@ from app.api.v1.schemas.auth import (
 from app.db import get_db
 from app.deps import usuario_atual
 from app.models import Usuario
-from app.services import autenticacao
+from app.services import autenticacao, limitador
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/registro", response_model=UsuarioAtual, status_code=status.HTTP_201_CREATED)
-def registrar(entrada: RegistroEntrada, db: Session = Depends(get_db)) -> UsuarioAtual:
+def registrar(
+    entrada: RegistroEntrada, request: Request, db: Session = Depends(get_db)
+) -> UsuarioAtual:
     """Cria a conta. Ela nasce pendente e é ativada depois da verificação de identidade."""
+    limitador.registrar_tentativa(db, request, entrada.email)
     usuario = autenticacao.registrar_usuario(db, entrada.nome, entrada.email, entrada.senha)
     return autenticacao.montar_usuario_atual(usuario)
 
 
 @router.post("/login", response_model=ParDeTokens)
-def entrar(entrada: LoginEntrada, db: Session = Depends(get_db)) -> ParDeTokens:
+def entrar(
+    entrada: LoginEntrada, request: Request, db: Session = Depends(get_db)
+) -> ParDeTokens:
+    limitador.registrar_tentativa(db, request, entrada.email)
     usuario = autenticacao.autenticar(db, entrada.email, entrada.senha)
     return autenticacao.emitir_tokens(usuario)
 

@@ -43,9 +43,6 @@ PARAMETROS: dict[str, Parametro] = {
         4320, 6, "Prazo após o fim do serviço para liberar 50% quando não há validação facial"
     ),
     "avaliacao_prazo_min": Parametro(2880, 3, "Prazo para avaliar após a conclusão"),
-    "cancelamento_tardio_min": Parametro(
-        240, 1, "Cancelar com menos que isso de antecedência gera advertência"
-    ),
     "tolerancia_falta_min": Parametro(30, 1, "Atraso após o início que permite registrar falta"),
     "checkin_antecedencia_min": Parametro(
         30, 30, "Antecedência a partir da qual o check-in é aceito"
@@ -74,6 +71,10 @@ PARAMETROS: dict[str, Parametro] = {
     "raio_padrao_km": Parametro(5, 5, "Raio de busca padrão do profissional"),
     "raio_maximo_km": Parametro(15, 15, "Raio de busca máximo do profissional"),
     "servicos_para_deixar_de_ser_novo": Parametro(5, 5, "Serviços concluídos até o selo Novo sair"),
+    "limite_credenciais_tentativas": Parametro(
+        10, 60, "Tentativas por IP ou e-mail nas rotas de credencial dentro da janela"
+    ),
+    "limite_credenciais_janela_s": Parametro(60, 60, "Janela, em segundos, do limite"),
     "advertencias_para_suspensao": Parametro(3, 3, "Advertências no período que suspendem a conta"),
     "periodo_advertencias_dias": Parametro(30, 30, "Janela de contagem das advertências"),
     "suspensao_advertencias_dias": Parametro(7, 7, "Duração da suspensão por advertências"),
@@ -98,6 +99,9 @@ PARAMETROS: dict[str, Parametro] = {
     ),
     "avaliacoes_minimas_suspensao": Parametro(
         5, 5, "Avaliações necessárias para a suspensão por nota média"
+    ),
+    "janela_rodada_min": Parametro(
+        120, 15, "Tempo de uma rodada de convites sem escolha antes de ela expirar"
     ),
     "rodadas_maximas": Parametro(3, 3, "Rodadas de convites antes de a vaga expirar sem match"),
 }

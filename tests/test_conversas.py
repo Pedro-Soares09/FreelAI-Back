@@ -231,14 +231,16 @@ def test_mensagem_via_websocket_chega_ao_outro_lado_em_menos_de_1s_e_fica_no_his
         ws_profissional.send_json(
             {
                 "texto": "Tudo certo! Segue a foto das ferramentas.",
-                "anexo_url": "/api/v1/arquivos/anexo/ferramentas.jpg",
+                "anexo_url": f"/api/v1/conversas/{conversa.id}/anexos/ferramentas.jpg",
             }
         )
         resposta_cont = ws_contratante.receive_json()
         resposta_prof = ws_profissional.receive_json()
         assert resposta_cont == resposta_prof
         assert resposta_cont["autor_id"] == cenario.profissional.id
-        assert resposta_cont["anexo_url"] == "/api/v1/arquivos/anexo/ferramentas.jpg"
+        assert (
+            resposta_cont["anexo_url"] == f"/api/v1/conversas/{conversa.id}/anexos/ferramentas.jpg"
+        )
 
     historico = cliente.get(
         f"/api/v1/conversas/{conversa.id}/mensagens",

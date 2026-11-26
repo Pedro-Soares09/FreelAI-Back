@@ -495,6 +495,31 @@ def expirar_convites_vencidos(db: Session) -> int:
 ESTADOS_CONVITE_ENCERRADO = (EstadoConvite.RECUSADO, EstadoConvite.EXPIRADO)
 
 
+@varredura("expiracao_convites_sem_resposta")
+def expirar_convites_sem_resposta(db: Session) -> int:
+    """Expira os convites da rodada atual que ficaram sem escolha além da janela da rodada.
+
+    Sem isso, convites sugeridos ou com interesse que ninguém escolheu manteriam a rodada
+    aberta para sempre e a próxima rodada nunca começaria.
+    """
+    limite = agora() - timedelta(minutes=float(configuracao.get("janela_rodada_min", db=db)))
+    convites = db.scalars(
+        select(Convite)
+        .join(Vaga, Vaga.id == Convite.vaga_id)
+        .where(
+            Convite.estado.in_((EstadoConvite.SUGERIDO, EstadoConvite.INTERESSADO)),
+            Convite.rodada == Vaga.rodada,
+            Vaga.estado == EstadoVaga.PUBLICADA,
+            Convite.criado_em <= limite,
+        )
+    ).all()
+    for convite in convites:
+        convite.estado = EstadoConvite.EXPIRADO
+    if convites:
+        db.commit()
+    return len(convites)
+
+
 def _rodada_sem_resposta(db: Session, vaga: Vaga) -> bool:
     """A rodada atual terminou sem aceite: todos os convites dela foram recusados ou expiraram."""
     convites = db.scalars(

@@ -107,8 +107,9 @@ def montar_mapa(
                     categoria_slug=categoria.slug,
                     categoria_nome=categoria.nome,
                     bairro=endereco.bairro,
-                    latitude=endereco.latitude,
-                    longitude=endereco.longitude,
+                    # Oferta aberta: o pino é aproximado (2 casas decimais, cerca de 1 km).
+                    latitude=round(endereco.latitude, 2),
+                    longitude=round(endereco.longitude, 2),
                     distancia_km=arredondar_km(distancia),
                     valor=vaga.valor_fixado or vaga.valor_inicial,
                     inicio_em=como_utc(vaga.inicio_em).isoformat(),
