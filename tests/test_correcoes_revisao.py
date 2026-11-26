@@ -41,7 +41,7 @@ from tests.fabricas import (
 
 
 def _retido(db):
-    cenario = criar_cenario_vaga(db)
+    cenario = criar_cenario_vaga(db, aceites_completos=True)
     pagamento = pagamentos.criar_pagamento(db, cenario.vaga)
     pagamentos.reter(db, pagamento)
     return cenario, pagamento
@@ -98,7 +98,7 @@ def test_livro_recusa_o_mesmo_tipo_de_lancamento_duas_vezes(db):
 
 
 def test_cobranca_vencida_e_reaberta_sem_esperar_a_varredura(db):
-    cenario = criar_cenario_vaga(db)
+    cenario = criar_cenario_vaga(db, aceites_completos=True)
     pagamento = pagamentos.criar_pagamento(db, cenario.vaga)
     avancar_relogio(timedelta(hours=1))
 
@@ -111,7 +111,7 @@ def test_cobranca_vencida_e_reaberta_sem_esperar_a_varredura(db):
 
 
 def test_cobranca_reaberta_recebe_codigo_pix_novo(db):
-    cenario = criar_cenario_vaga(db)
+    cenario = criar_cenario_vaga(db, aceites_completos=True)
     primeiro = pagamentos.criar_pagamento(db, cenario.vaga).codigo_pix
     avancar_relogio(timedelta(hours=1))
 
@@ -121,7 +121,7 @@ def test_cobranca_reaberta_recebe_codigo_pix_novo(db):
 
 
 def test_vaga_com_valor_fixado_zero_nao_gera_cobranca(db):
-    cenario = criar_cenario_vaga(db, valor_fixado=Decimal("0.00"))
+    cenario = criar_cenario_vaga(db, aceites_completos=True, valor_fixado=Decimal("0.00"))
 
     with pytest.raises(HTTPException) as erro:
         pagamentos.criar_pagamento(db, cenario.vaga)
@@ -197,7 +197,7 @@ def _api_retido(cliente, db):
     contratante = criar_usuario(
         db, perfis=(TipoPerfil.CONTRATANTE,), perfil_ativo=TipoPerfil.CONTRATANTE
     )
-    cenario = criar_cenario_vaga(db, contratante=contratante)
+    cenario = criar_cenario_vaga(db, aceites_completos=True, contratante=contratante)
     return contratante, cenario
 
 
@@ -262,7 +262,7 @@ def test_simulacao_exige_contratante_ativo(cliente, db, monkeypatch):
         perfis=(TipoPerfil.CONTRATANTE,),
         perfil_ativo=TipoPerfil.CONTRATANTE,
     )
-    cenario = criar_cenario_vaga(db, contratante=pendente)
+    cenario = criar_cenario_vaga(db, aceites_completos=True, contratante=pendente)
     pagamento = pagamentos.criar_pagamento(db, cenario.vaga)
 
     resposta = cliente.post(
@@ -346,7 +346,7 @@ def test_chaves_estrangeiras_estao_ativas_no_sqlite(db):
 
 
 def test_restricoes_de_dominio_do_banco(db):
-    cenario = criar_cenario_vaga(db)
+    cenario = criar_cenario_vaga(db, aceites_completos=True)
     db.add(
         Avaliacao(
             vaga_id=cenario.vaga.id,

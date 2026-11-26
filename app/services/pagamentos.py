@@ -1,7 +1,10 @@
 """Cobrança Pix, retenção, liberação e estorno com livro de lançamentos.
 
-O pagamento de uma vaga é feito somente por Pix. O valor fica retido até a conclusão do serviço
-e sai da retenção apenas por lançamentos novos (liberação ao profissional, taxa da plataforma e
+O pagamento de uma vaga é feito somente por Pix e acontece depois da conclusão do serviço: a
+cobrança abre quando o contratante confirma a conclusão (ou o prazo vence) e, paga a cobrança,
+o valor é liberado ao profissional descontada a taxa. Cobranças pagas antes do serviço (vaga
+aceita) continuam suportadas: o valor fica retido até a conclusão. Em qualquer caso o valor sai
+da retenção apenas por lançamentos novos (liberação ao profissional, taxa da plataforma e
 estorno ao contratante). Lançamentos nunca são alterados nem removidos, então a soma das saídas
 de um pagamento encerrado é sempre igual ao valor retido.
 
@@ -21,20 +24,27 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.erros import erro_http
 from app.models import (
+    Contrato,
+    Conversa,
     Disputa,
+    Endereco,
     EstadoDisputa,
     EstadoPagamento,
     EstadoVaga,
     Lancamento,
     Pagamento,
     PerfilContratante,
+    PerfilProfissional,
     TipoLancamento,
+    TipoPerfil,
     Usuario,
     Vaga,
 )
-from app.services import biometria, configuracao
+from app.services import biometria, configuracao, notificacoes
+from app.services.geo import distancia_km
 from app.services.varreduras import varredura
 from app.tempo import agora, como_utc
 
@@ -171,12 +181,34 @@ def _usuario_do_contratante(db: Session, vaga: Vaga) -> int | None:
     )
 
 
+def _usuario_do_profissional(db: Session, vaga: Vaga) -> int | None:
+    return db.scalar(
+        select(PerfilProfissional.usuario_id).where(PerfilProfissional.id == vaga.profissional_id)
+    )
+
+
+def vaga_endereco(db: Session, vaga: Vaga) -> Endereco:
+    return db.get(Endereco, vaga.endereco_id)
+
+
 def exigir_contratante_dono(db: Session, vaga: Vaga, usuario_id: int) -> None:
     if _usuario_do_contratante(db, vaga) != usuario_id:
         raise erro_http(
             status.HTTP_403_FORBIDDEN,
             "vaga_de_outro_contratante",
             "Somente o contratante que publicou a vaga pode fazer esta ação.",
+        )
+
+
+def exigir_aceites_do_acordo(db: Session, vaga: Vaga) -> None:
+    """A cobrança só abre depois que contratante e profissional deram o aceite do acordo."""
+    contrato = db.scalar(select(Contrato).where(Contrato.vaga_id == vaga.id))
+    aceitos = {a.perfil for a in contrato.aceites} if contrato else set()
+    if aceitos != {TipoPerfil.CONTRATANTE, TipoPerfil.PROFISSIONAL}:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "acordo_pendente",
+            "As duas partes precisam aceitar o acordo antes do pagamento.",
         )
 
 
@@ -215,13 +247,26 @@ def _cobranca_vencida(pagamento: Pagamento) -> bool:
     )
 
 
+def _fechar_conversa(db: Session, vaga_id: int) -> None:
+    conversa = db.scalar(select(Conversa).where(Conversa.vaga_id == vaga_id))
+    if conversa is not None:
+        conversa.aberta = False
+
+
 def _expirar(db: Session, pagamento: Pagamento) -> None:
     """Marca a cobrança como expirada e devolve a vaga à publicação. Não faz commit."""
     pagamento.estado = EstadoPagamento.EXPIRADO
     vaga = db.get(Vaga, pagamento.vaga_id)
     if vaga is not None and vaga.estado == EstadoVaga.AGUARDANDO_PAGAMENTO:
-        vaga.estado = EstadoVaga.PUBLICADA
+        from app.services import vagas as vagas_servico
+
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.EXPIRAR_PAGAMENTO,
+            motivo="cobranca_expirada",
+        )
         vaga.profissional_id = None
+        _fechar_conversa(db, vaga.id)
 
 
 def _exigir_retido(pagamento: Pagamento) -> None:
@@ -229,17 +274,87 @@ def _exigir_retido(pagamento: Pagamento) -> None:
         raise _erro_estado_pagamento(pagamento, EstadoPagamento.RETIDO)
 
 
+def _incrementar_servicos_concluidos(db: Session, vaga: Vaga) -> None:
+    """Incrementa os serviços concluídos do profissional quando a vaga entra em estado concluído."""
+    if vaga.profissional_id is None:
+        return
+    profissional = db.get(PerfilProfissional, vaga.profissional_id)
+    if profissional is not None:
+        profissional.servicos_concluidos = (profissional.servicos_concluidos or 0) + 1
+
+
 # ---------------------------------------------------------------------------
 # Ciclo do pagamento
 # ---------------------------------------------------------------------------
 
 
+def _valor_da_vaga(vaga: Vaga) -> Decimal:
+    base = vaga.valor_fixado if vaga.valor_fixado is not None else vaga.valor_inicial
+    return _centavos(_para_decimal(base))
+
+
+def emitir_cobranca(
+    db: Session, vaga: Vaga, *, valor: Decimal | None = None, renovar: bool = False
+) -> Pagamento:
+    """Abre (ou reabre) a cobrança Pix de um serviço já prestado, sem mudar o estado da vaga.
+
+    Cobrança em aberto é devolvida como está. Cobrança expirada, ou `renovar=True` sobre uma
+    cobrança ainda não paga, ganha novo código e novo prazo. Não faz commit.
+    """
+    existente = pagamento_da_vaga(db, vaga)
+    pagavel = existente is not None and existente.estado in (
+        EstadoPagamento.AGUARDANDO,
+        EstadoPagamento.EXPIRADO,
+    )
+    if existente is not None and not pagavel:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "pagamento_ja_existe",
+            "Esta vaga já possui uma cobrança.",
+            pagamento_id=existente.id,
+            estado_atual=existente.estado.value,
+        )
+    if (
+        existente is not None
+        and existente.estado == EstadoPagamento.AGUARDANDO
+        and not renovar
+        and not _cobranca_vencida(existente)
+    ):
+        return existente
+    total = _centavos(valor) if valor is not None else _valor_da_vaga(vaga)
+    if total <= 0:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "valor_invalido",
+            "O valor da vaga precisa ser maior que zero para abrir a cobrança.",
+        )
+    prazo = timedelta(minutes=configuracao.get("prazo_pagamento_min", db=db))
+    pagamento = existente or Pagamento(vaga_id=vaga.id, valor_total=total)
+    pagamento.valor_total = total
+    pagamento.estado = EstadoPagamento.AGUARDANDO
+    pagamento.expira_em = agora() + prazo
+    db.add(pagamento)
+    db.flush()
+    pagamento.codigo_pix = (
+        obter_gateway().criar_cobranca(pagamento.id, total, pagamento.expira_em).codigo_pix
+    )
+    return pagamento
+
+
 def criar_pagamento(db: Session, vaga: Vaga) -> Pagamento:
     """Abre a cobrança Pix da vaga e a coloca em espera pelo pagamento.
+
+    Depois da conclusão do serviço a cobrança é emitida (ou reemitida, se expirou) e a vaga
+    segue concluída. Antes do serviço, a vaga aceita passa a aguardar o pagamento.
 
     Uma cobrança expirada da mesma vaga é reaproveitada: ela nunca reteve valor, então basta
     emitir um novo código e um novo prazo.
     """
+    if vaga.estado == EstadoVaga.CONCLUIDA:
+        pagamento = emitir_cobranca(db, vaga)
+        db.commit()
+        db.refresh(pagamento)
+        return pagamento
     if vaga.estado not in (EstadoVaga.ACEITA, EstadoVaga.AGUARDANDO_PAGAMENTO):
         raise erro_http(
             status.HTTP_409_CONFLICT,
@@ -249,8 +364,23 @@ def criar_pagamento(db: Session, vaga: Vaga) -> Pagamento:
         )
     existente = pagamento_da_vaga(db, vaga)
     if existente is not None and _cobranca_vencida(existente):
+        profissional_anterior = vaga.profissional_id
         _expirar(db, existente)
-        vaga.estado = EstadoVaga.ACEITA
+        if profissional_anterior is not None and vaga.profissional_id is None:
+            vaga.profissional_id = profissional_anterior
+        if vaga.estado == EstadoVaga.PUBLICADA and vaga.profissional_id is not None:
+            from app.services import vagas as vagas_servico
+
+            vagas_servico.transicionar(
+                vaga,
+                vagas_servico.EventoVaga.INICIAR_CONTRATACAO,
+                motivo="reabertura_cobranca_vencida",
+            )
+            vagas_servico.transicionar(
+                vaga,
+                vagas_servico.EventoVaga.ACEITAR_CONVITE,
+                motivo="reabertura_para_nova_cobranca",
+            )
     if existente is not None and existente.estado != EstadoPagamento.EXPIRADO:
         raise erro_http(
             status.HTTP_409_CONFLICT,
@@ -260,8 +390,7 @@ def criar_pagamento(db: Session, vaga: Vaga) -> Pagamento:
             estado_atual=existente.estado.value,
         )
 
-    base = vaga.valor_fixado if vaga.valor_fixado is not None else vaga.valor_inicial
-    valor = _centavos(_para_decimal(base))
+    valor = _valor_da_vaga(vaga)
     if valor <= 0:
         raise erro_http(
             status.HTTP_409_CONFLICT,
@@ -286,7 +415,14 @@ def criar_pagamento(db: Session, vaga: Vaga) -> Pagamento:
 
     cobranca = obter_gateway().criar_cobranca(pagamento.id, valor, pagamento.expira_em)
     pagamento.codigo_pix = cobranca.codigo_pix
-    vaga.estado = EstadoVaga.AGUARDANDO_PAGAMENTO
+    if vaga.estado == EstadoVaga.ACEITA:
+        from app.services import vagas as vagas_servico
+
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.SOLICITAR_PAGAMENTO,
+            motivo="cobranca_emitida",
+        )
     db.commit()
     db.refresh(pagamento)
     return pagamento
@@ -310,15 +446,30 @@ def reter(db: Session, pagamento: Pagamento) -> Pagamento:
         )
 
     vaga = _vaga_do_pagamento(db, pagamento)
+    pos_servico = vaga.estado == EstadoVaga.CONCLUIDA
     _lancar(
         db,
         pagamento,
         TipoLancamento.RETENCAO,
         _para_decimal(pagamento.valor_total),
-        "Pix recebido e retido até a conclusão do serviço",
+        "Pix recebido após a conclusão do serviço"
+        if pos_servico
+        else "Pix recebido e retido até a conclusão do serviço",
     )
     pagamento.estado = EstadoPagamento.RETIDO
-    vaga.estado = EstadoVaga.CONTRATADA
+    if pos_servico:
+        # Serviço já concluído: o Pix pago é liberado ao profissional na mesma operação.
+        db.flush()
+        return liberar_integral(db, pagamento)
+    if vaga.estado in (EstadoVaga.ACEITA, EstadoVaga.AGUARDANDO_PAGAMENTO):
+        from app.services import vagas as vagas_servico
+
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.CONFIRMAR_CONTRATACAO,
+            motivo="pagamento_confirmado_retido",
+        )
+    notificacoes.notificar_pagamento_retido(db, vaga, pagamento, commit=False)
     db.commit()
     db.refresh(pagamento)
     return pagamento
@@ -336,7 +487,15 @@ def liberar_integral(db: Session, pagamento: Pagamento) -> Pagamento:
     _lancar(db, pagamento, TipoLancamento.LIBERACAO_PROFISSIONAL, liquido, "Liberação integral")
     _lancar(db, pagamento, TipoLancamento.TAXA_PLATAFORMA, taxa, "Taxa da plataforma")
     pagamento.estado = EstadoPagamento.LIBERADO
-    vaga.estado = EstadoVaga.LIBERADA
+    from app.services import vagas as vagas_servico
+
+    vagas_servico.transicionar(
+        vaga,
+        vagas_servico.EventoVaga.LIBERAR_INTEGRAL,
+        motivo="pagamento_liberado_integral",
+    )
+    notificacoes.notificar_pagamento_liberado(db, vaga, parcial=False, commit=False)
+    _fechar_conversa(db, vaga.id)
     db.commit()
     db.refresh(pagamento)
     return pagamento
@@ -369,16 +528,31 @@ def liberar_parcial(db: Session, pagamento: Pagamento, percentual: Decimal | int
     _lancar(db, pagamento, TipoLancamento.TAXA_PLATAFORMA, taxa, "Taxa da plataforma")
     _lancar(db, pagamento, TipoLancamento.ESTORNO, estorno, "Estorno parcial ao contratante")
     pagamento.estado = EstadoPagamento.LIBERADO_PARCIAL
-    vaga.estado = EstadoVaga.LIBERADA_PARCIAL
+    from app.services import vagas as vagas_servico
+
+    vagas_servico.transicionar(
+        vaga,
+        vagas_servico.EventoVaga.LIBERAR_PARCIAL,
+        motivo="pagamento_liberado_parcial",
+    )
+    notificacoes.notificar_pagamento_liberado(db, vaga, parcial=True, commit=False)
+    _fechar_conversa(db, vaga.id)
     db.commit()
     db.refresh(pagamento)
     return pagamento
 
 
 def estornar_integral(
-    db: Session, pagamento: Pagamento, *, estado_vaga: EstadoVaga = EstadoVaga.REEMBOLSADA
+    db: Session,
+    pagamento: Pagamento,
+    *,
+    estado_vaga: EstadoVaga = EstadoVaga.REEMBOLSADA,
+    commit: bool = True,
 ) -> Pagamento:
-    """Devolve todo o valor retido ao contratante. Nenhuma taxa é cobrada."""
+    """Devolve todo o valor retido ao contratante. Nenhuma taxa é cobrada.
+
+    Com `commit=False` só faz flush, para quem precisa gravar o estorno junto de outras mudanças.
+    """
     _travar(db, pagamento)
     if pagamento.estado == EstadoPagamento.ESTORNADO:
         return pagamento
@@ -389,9 +563,24 @@ def estornar_integral(
     obter_gateway().estornar(pagamento.codigo_pix or "", total)
     _lancar(db, pagamento, TipoLancamento.ESTORNO, total, "Estorno integral ao contratante")
     pagamento.estado = EstadoPagamento.ESTORNADO
-    vaga.estado = estado_vaga
-    db.commit()
-    db.refresh(pagamento)
+    from app.services import vagas as vagas_servico
+
+    _evento_estorno = (
+        vagas_servico.EventoVaga.REGISTRAR_FALTA
+        if estado_vaga == EstadoVaga.FALTA
+        else vagas_servico.EventoVaga.REEMBOLSAR
+    )
+    vagas_servico.transicionar(
+        vaga,
+        _evento_estorno,
+        motivo="pagamento_estornado",
+    )
+    _fechar_conversa(db, vaga.id)
+    if commit:
+        db.commit()
+        db.refresh(pagamento)
+    else:
+        db.flush()
     return pagamento
 
 
@@ -406,6 +595,12 @@ ESTADOS_FINAIS = (
 )
 
 ESTADOS_CONCLUIVEIS = (EstadoVaga.CONTRATADA, EstadoVaga.EM_EXECUCAO, EstadoVaga.ENCERRADA)
+
+
+def _abrir_cobranca_da_conclusao(db: Session, vaga: Vaga) -> None:
+    """Abre a cobrança Pix do serviço concluído, salvo quando ela já existe (pago antes)."""
+    if pagamento_da_vaga(db, vaga) is None:
+        emitir_cobranca(db, vaga)
 
 
 def confirmar_conclusao(db: Session, vaga: Vaga, contratante_usuario_id: int) -> Vaga:
@@ -428,7 +623,16 @@ def confirmar_conclusao(db: Session, vaga: Vaga, contratante_usuario_id: int) ->
             "A conclusão só pode ser confirmada depois do fim previsto do serviço.",
             fim_em=fim.isoformat(),
         )
-    vaga.estado = EstadoVaga.CONCLUIDA
+    from app.services import vagas as vagas_servico
+
+    vagas_servico.transicionar(
+        vaga,
+        vagas_servico.EventoVaga.CONCLUIR_SERVICO,
+        motivo="conclusao_confirmada_contratante",
+    )
+    notificacoes.notificar_avaliacao_pendente(db, vaga, commit=False)
+    _incrementar_servicos_concluidos(db, vaga)
+    _abrir_cobranca_da_conclusao(db, vaga)
     db.commit()
     db.refresh(vaga)
     return vaga
@@ -467,6 +671,62 @@ def validar_facial_e_liberar(
     return liberar_integral(db, pagamento)
 
 
+def registrar_checkin(
+    db: Session,
+    vaga: Vaga,
+    usuario_id: int,
+    latitude: float,
+    longitude: float,
+    *,
+    simular_local: bool = False,
+) -> tuple[Vaga, float]:
+    """Check-in do profissional contratado: chegada ao local dentro da janela e do raio.
+
+    Devolve a vaga e a distância em metros. No perfil demo `simular_local` usa o endereço da vaga.
+    """
+    if vaga.profissional_id is None or _usuario_do_profissional(db, vaga) != usuario_id:
+        raise erro_http(
+            status.HTTP_403_FORBIDDEN,
+            "vaga_de_outro_profissional",
+            "Somente o profissional contratado pode fazer o check-in.",
+        )
+    if vaga.estado not in (EstadoVaga.CONTRATADA, EstadoVaga.EM_EXECUCAO):
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "vaga_sem_contratacao",
+            "O check-in só é aceito em uma vaga contratada.",
+            estado_atual=vaga.estado.value,
+        )
+    if vaga.checkin_em is not None:
+        raise erro_http(status.HTTP_409_CONFLICT, "checkin_ja_realizado", "Check-in já registrado.")
+    antecedencia = timedelta(minutes=configuracao.get("checkin_antecedencia_min", db=db))
+    abre_em = como_utc(vaga.inicio_em) - antecedencia
+    if agora() < abre_em:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "checkin_fora_da_janela",
+            "O check-in só abre próximo do horário de início.",
+            abre_em=abre_em.isoformat(),
+        )
+    endereco = vaga_endereco(db, vaga)
+    if simular_local and settings.perfil == "demo":
+        latitude, longitude = endereco.latitude, endereco.longitude
+    metros = distancia_km(latitude, longitude, endereco.latitude, endereco.longitude) * 1000
+    raio = configuracao.get("checkin_raio_m", db=db)
+    if metros > raio:
+        raise erro_http(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "checkin_longe_do_local",
+            f"Você está a {round(metros)} m do local; chegue a até {raio} m para o check-in.",
+            distancia_metros=round(metros),
+            raio_metros=raio,
+        )
+    vaga.checkin_em = agora()
+    db.commit()
+    db.refresh(vaga)
+    return vaga, metros
+
+
 def registrar_falta(db: Session, vaga: Vaga, *, exigir_tolerancia: bool = True) -> Vaga:
     """Falta do profissional: a vaga vai para falta e o valor retido volta ao contratante.
 
@@ -474,6 +734,12 @@ def registrar_falta(db: Session, vaga: Vaga, *, exigir_tolerancia: bool = True) 
     """
     if vaga.estado == EstadoVaga.FALTA:
         return vaga
+    if vaga.checkin_em is not None:
+        raise erro_http(
+            status.HTTP_409_CONFLICT,
+            "checkin_realizado",
+            "O profissional fez o check-in; não é possível registrar falta.",
+        )
     if vaga.estado not in (EstadoVaga.CONTRATADA, EstadoVaga.EM_EXECUCAO):
         raise erro_http(
             status.HTTP_409_CONFLICT,
@@ -495,7 +761,14 @@ def registrar_falta(db: Session, vaga: Vaga, *, exigir_tolerancia: bool = True) 
     if pagamento is not None and pagamento.estado == EstadoPagamento.RETIDO:
         estornar_integral(db, pagamento, estado_vaga=EstadoVaga.FALTA)
     else:
-        vaga.estado = EstadoVaga.FALTA
+        from app.services import vagas as vagas_servico
+
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.REGISTRAR_FALTA,
+            motivo="falta_registrada_sem_retencao",
+        )
+        _fechar_conversa(db, vaga.id)
         db.commit()
     db.refresh(vaga)
     return vaga
@@ -520,8 +793,17 @@ def _vagas_com_fim_vencido(db: Session, estados, chave_prazo: str) -> list[Vaga]
 def concluir_automaticamente(db: Session) -> int:
     """Conclui vagas sem resposta do contratante dentro do prazo após o fim do serviço."""
     vencidas = _vagas_com_fim_vencido(db, ESTADOS_CONCLUIVEIS, "confirmacao_conclusao_min")
+    from app.services import vagas as vagas_servico
+
     for vaga in vencidas:
-        vaga.estado = EstadoVaga.CONCLUIDA
+        vagas_servico.transicionar(
+            vaga,
+            vagas_servico.EventoVaga.CONCLUIR_SERVICO,
+            motivo="conclusao_automatica_prazo_vencido",
+        )
+        notificacoes.notificar_avaliacao_pendente(db, vaga, commit=False)
+        _incrementar_servicos_concluidos(db, vaga)
+        _abrir_cobranca_da_conclusao(db, vaga)
     if vencidas:
         db.commit()
     return len(vencidas)

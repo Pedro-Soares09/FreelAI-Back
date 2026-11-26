@@ -34,8 +34,9 @@ from app.models import (
     Vaga,
     categorias_profissional,
 )
-from app.services import configuracao
+from app.services import agenda, configuracao, notificacoes
 from app.services.geo import caixa_para_raio, distancia_km
+from app.services.varreduras import varredura
 from app.tempo import agora, como_utc
 
 # Estados em que a agenda do profissional está comprometida com outra vaga.
@@ -97,7 +98,44 @@ def _profissionais_ocupados(db: Session, vaga: Vaga, ids: list[int]) -> set[int]
         outro_inicio, outro_fim = _intervalo(outra)
         if outro_inicio < fim and outro_fim > inicio:
             ocupados.add(outra.profissional_id)
-    return ocupados
+    return ocupados | agenda.profissionais_bloqueados(db, ids, inicio, fim)
+
+
+def pendencias_da_categoria(
+    db: Session, perfil: PerfilProfissional, categoria: Categoria
+) -> list[str]:
+    """O que falta aprovar para o profissional atuar na categoria, com as mesmas regras do match.
+
+    Risco médio ou alto exige experiência aprovada; categorias que exigem qualificação ou EPI
+    pedem a comprovação aprovada da própria categoria.
+    """
+    faltas: list[str] = []
+    if (
+        categoria.risco in RISCOS_COM_EXPERIENCIA
+        and perfil.experiencia_aprovada != StatusAprovacao.APROVADO
+    ):
+        faltas.append("experiencia")
+    for exigida, modelo, nome in (
+        (categoria.exige_qualificacao, Qualificacao, "qualificacao"),
+        (categoria.exige_epi, EpiProfissional, "epi"),
+    ):
+        if not exigida:
+            continue
+        aprovada = db.scalar(
+            select(modelo.id).where(
+                modelo.profissional_id == perfil.id,
+                modelo.categoria_id == categoria.id,
+                modelo.status == StatusAprovacao.APROVADO,
+            )
+        )
+        if aprovada is None:
+            faltas.append(nome)
+    return faltas
+
+
+def pode_atuar(db: Session, perfil: PerfilProfissional, categoria: Categoria) -> bool:
+    """Regra única de aptidão por categoria (SEG01, SEG02, SEG04), do perfil e do match."""
+    return not pendencias_da_categoria(db, perfil, categoria)
 
 
 def _candidatos_elegiveis(db: Session, vaga: Vaga) -> list[tuple[PerfilProfissional, float]]:
@@ -423,4 +461,93 @@ def gerar_rodada(db: Session, vaga: Vaga) -> list[Convite]:
         ) from None
     for convite in convites:
         db.refresh(convite)
+    notificacoes.notificar_selecionados_top3(db, vaga, convites)
     return convites
+
+
+@varredura("expiracao_convites")
+def expirar_convites_vencidos(db: Session) -> int:
+    """Expira convites escolhidos cujo prazo de aceite acabou e reabre a vaga para o match."""
+    vencidos = db.scalars(
+        select(Convite).where(
+            Convite.estado == EstadoConvite.ESCOLHIDO,
+            Convite.expira_em.is_not(None),
+            Convite.expira_em <= agora(),
+        )
+    ).all()
+    for convite in vencidos:
+        convite.estado = EstadoConvite.EXPIRADO
+        vaga = db.get(Vaga, convite.vaga_id)
+        if vaga.estado == EstadoVaga.AGUARDANDO_ACEITE:
+            from app.services import vagas as vagas_servico
+
+            vagas_servico.transicionar(
+                vaga,
+                vagas_servico.EventoVaga.EXPIRAR_CONVITE,
+                motivo="convite_escolhido_expirado",
+            )
+            vaga.prazo_em = vagas_servico.calcular_prazo_publicacao(db, vaga.inicio_em)
+    if vencidos:
+        db.commit()
+    return len(vencidos)
+
+
+ESTADOS_CONVITE_ENCERRADO = (EstadoConvite.RECUSADO, EstadoConvite.EXPIRADO)
+
+
+@varredura("expiracao_convites_sem_resposta")
+def expirar_convites_sem_resposta(db: Session) -> int:
+    """Expira os convites da rodada atual que ficaram sem escolha além da janela da rodada.
+
+    Sem isso, convites sugeridos ou com interesse que ninguém escolheu manteriam a rodada
+    aberta para sempre e a próxima rodada nunca começaria.
+    """
+    limite = agora() - timedelta(minutes=float(configuracao.get("janela_rodada_min", db=db)))
+    convites = db.scalars(
+        select(Convite)
+        .join(Vaga, Vaga.id == Convite.vaga_id)
+        .where(
+            Convite.estado.in_((EstadoConvite.SUGERIDO, EstadoConvite.INTERESSADO)),
+            Convite.rodada == Vaga.rodada,
+            Vaga.estado == EstadoVaga.PUBLICADA,
+            Convite.criado_em <= limite,
+        )
+    ).all()
+    for convite in convites:
+        convite.estado = EstadoConvite.EXPIRADO
+    if convites:
+        db.commit()
+    return len(convites)
+
+
+def _rodada_sem_resposta(db: Session, vaga: Vaga) -> bool:
+    """A rodada atual terminou sem aceite: todos os convites dela foram recusados ou expiraram."""
+    convites = db.scalars(
+        select(Convite).where(Convite.vaga_id == vaga.id, Convite.rodada == vaga.rodada)
+    ).all()
+    return bool(convites) and all(c.estado in ESTADOS_CONVITE_ENCERRADO for c in convites)
+
+
+@varredura("nova_rodada")
+def abrir_novas_rodadas(db: Session) -> int:
+    """Abre a rodada seguinte quando uma rodada termina sem aceite; sem candidatos, expira a vaga.
+
+    Só vagas publicadas participam. Ao atingir `rodadas_maximas` ou sem elegíveis restantes, a
+    vaga expira e o contratante é avisado.
+    """
+    vagas = db.scalars(select(Vaga).where(Vaga.estado == EstadoVaga.PUBLICADA)).all()
+    alteradas = 0
+    limite = int(configuracao.get("rodadas_maximas", db=db))
+    for vaga in vagas:
+        if not _rodada_sem_resposta(db, vaga):
+            continue
+        convites = [] if vaga.rodada >= limite else gerar_rodada(db, vaga)
+        if convites:
+            notificacoes.notificar_nova_rodada(db, vaga, vaga.rodada)
+        else:
+            vaga.estado = EstadoVaga.EXPIRADA
+            vaga.prazo_em = None
+            db.commit()
+            notificacoes.notificar_vaga_sem_candidatos(db, vaga)
+        alteradas += 1
+    return alteradas

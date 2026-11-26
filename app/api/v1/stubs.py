@@ -10,10 +10,7 @@ from typing import Literal
 from fastapi import APIRouter, Query, Response
 
 from app.api.v1.schemas.integracao import (
-    ConversaResumo,
-    DadosAcordo,
     PontoMapa,
-    VagaResumo,
 )
 
 router = APIRouter()
@@ -25,27 +22,6 @@ def _marcar_stub(resposta: Response) -> None:
 
 def _exemplo(modelo) -> dict:
     return modelo.model_config["json_schema_extra"]["examples"][0]
-
-
-@router.get("/vagas/{vaga_id}", response_model=VagaResumo, tags=["vagas"])
-def detalhar_vaga(vaga_id: int, resposta: Response) -> dict:
-    """Detalhe de uma vaga (resposta de exemplo)."""
-    _marcar_stub(resposta)
-    return {**_exemplo(VagaResumo), "id": vaga_id}
-
-
-@router.get("/vagas/{vaga_id}/acordo", response_model=DadosAcordo, tags=["vagas"])
-def consultar_acordo(vaga_id: int, resposta: Response) -> dict:
-    """Resumo do acordo que alimenta o contrato e o pagamento (resposta de exemplo)."""
-    _marcar_stub(resposta)
-    return {**_exemplo(DadosAcordo), "vaga_id": vaga_id}
-
-
-@router.get("/conversas/{conversa_id}", response_model=ConversaResumo, tags=["conversas"])
-def detalhar_conversa(conversa_id: int, resposta: Response) -> dict:
-    """Resumo de uma conversa, com o id da vaga a que pertence (resposta de exemplo)."""
-    _marcar_stub(resposta)
-    return {**_exemplo(ConversaResumo), "id": conversa_id}
 
 
 @router.get("/mapa/pontos", response_model=list[PontoMapa], tags=["mapa"])

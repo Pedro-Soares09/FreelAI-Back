@@ -3,6 +3,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
     Column,
@@ -12,11 +13,13 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Numeric,
     SmallInteger,
     String,
     Table,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,6 +29,7 @@ from app.models.enums import (
     PapelUsuario,
     RiscoCategoria,
     StatusAprovacao,
+    TipoArquivo,
     TipoPerfil,
     TipoPessoa,
     TipoQualificacao,
@@ -58,6 +62,7 @@ class Usuario(MarcaTempo, Base):
     papel: Mapped[PapelUsuario] = mapped_column(_enum(PapelUsuario), default=PapelUsuario.USUARIO)
     perfil_ativo: Mapped[TipoPerfil | None] = mapped_column(_enum(TipoPerfil), nullable=True)
     suspensa_ate: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    excluida_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     perfil_profissional: Mapped["PerfilProfissional | None"] = relationship(
         back_populates="usuario", uselist=False
@@ -101,9 +106,7 @@ class PerfilProfissional(MarcaTempo, Base):
     foto_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     endereco_id: Mapped[int | None] = mapped_column(ForeignKey("enderecos.id"), nullable=True)
     raio_km: Mapped[int] = mapped_column(SmallInteger, default=5)
-    disponivel_ate: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    disponivel_ate: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     servicos_concluidos: Mapped[int] = mapped_column(Integer, default=0)
     comunicacao: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     agilidade: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
@@ -111,7 +114,11 @@ class PerfilProfissional(MarcaTempo, Base):
     verificacao: Mapped[StatusAprovacao] = mapped_column(
         _enum(StatusAprovacao), default=StatusAprovacao.PENDENTE
     )
+    pro: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     verificacao_motivo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    verificacao_enviada_em: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     experiencia_aprovada: Mapped[StatusAprovacao] = mapped_column(
         _enum(StatusAprovacao), default=StatusAprovacao.PENDENTE
     )
@@ -138,6 +145,19 @@ class PerfilContratante(MarcaTempo, Base):
     verificacao: Mapped[StatusAprovacao] = mapped_column(
         _enum(StatusAprovacao), default=StatusAprovacao.PENDENTE
     )
+    verificacao_motivo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    verificacao_enviada_em: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Personalização do perfil (todos opcionais).
+    bio: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    bairro: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    horario_contato: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    categorias_interesse: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    exigir_verificado: Mapped[bool] = mapped_column(Boolean, default=False)
+    aceita_notificacoes: Mapped[bool] = mapped_column(Boolean, default=True)
+    cor_destaque: Mapped[str] = mapped_column(String(20), default="lilas")
+    avatar_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     usuario: Mapped[Usuario] = relationship(back_populates="perfil_contratante")
 
@@ -189,9 +209,7 @@ class Experiencia(Base):
     __tablename__ = "experiencias"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    profissional_id: Mapped[int] = mapped_column(
-        ForeignKey("perfis_profissionais.id"), index=True
-    )
+    profissional_id: Mapped[int] = mapped_column(ForeignKey("perfis_profissionais.id"), index=True)
     categoria_id: Mapped[int | None] = mapped_column(ForeignKey("categorias.id"), nullable=True)
     descricao: Mapped[str] = mapped_column(Text)
     referencia_nome: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -245,3 +263,30 @@ class Configuracao(Base):
     perfil: Mapped[str] = mapped_column(String(16))
     valor: Mapped[str] = mapped_column(String(80))
     descricao: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
+class Arquivo(Base):
+    """Metadados de um arquivo enviado: dono, tipo, chave gerada, mime e tamanho."""
+
+    __tablename__ = "arquivos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    tipo: Mapped[TipoArquivo] = mapped_column(_enum(TipoArquivo))
+    chave: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    mime_type: Mapped[str] = mapped_column(String(64))
+    tamanho_bytes: Mapped[int] = mapped_column(Integer)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+
+
+class AssinaturaPro(Base):
+    """Plano Pro simulado de um profissional; não altera a pontuação do match."""
+
+    __tablename__ = "assinaturas_pro"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profissional_id: Mapped[int] = mapped_column(ForeignKey("perfis_profissionais.id"), unique=True)
+    valor_mensal: Mapped[float] = mapped_column(Numeric(8, 2))
+    iniciada_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+    valido_ate: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    renovacao_automatica: Mapped[bool] = mapped_column(Boolean, default=True)

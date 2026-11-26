@@ -3,6 +3,9 @@ from app.models.contratacao import (  # noqa: F401
     AceiteTermos,
     Advertencia,
     Avaliacao,
+    BloqueioAgenda,
+    ComprovantePagamento,
+    ContestacaoConta,
     Contrato,
     Conversa,
     Convite,
@@ -12,6 +15,8 @@ from app.models.contratacao import (  # noqa: F401
     Mensagem,
     Notificacao,
     Pagamento,
+    SancaoConta,
+    TentativaContato,
     Vaga,
 )
 from app.models.enums import (  # noqa: F401
@@ -26,6 +31,8 @@ from app.models.enums import (  # noqa: F401
     PapelUsuario,
     RiscoCategoria,
     StatusAprovacao,
+    TipoArquivo,
+    TipoComprovante,
     TipoLancamento,
     TipoPerfil,
     TipoPessoa,
@@ -33,6 +40,8 @@ from app.models.enums import (  # noqa: F401
     TipoVaga,
 )
 from app.models.nucleo import (  # noqa: F401
+    Arquivo,
+    AssinaturaPro,
     Categoria,
     ChecklistItem,
     Configuracao,

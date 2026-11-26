@@ -50,8 +50,46 @@ def cliente(engine):
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True, scope="session")
+def custo_de_hash_reduzido():
+    """Reduz o custo do bcrypt só na suíte: cada conta criada nos testes gerava um hash lento."""
+    from app.security import password_context
+
+    password_context.update(bcrypt__rounds=4)
+
+
+@pytest.fixture(autouse=True)
+def varreduras_automaticas_desligadas(monkeypatch):
+    """O agendador não roda nos testes: as varreduras são chamadas explicitamente."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "varreduras_automaticas", False)
+
+
+@pytest.fixture(autouse=True)
+def limite_de_credenciais_desligado(monkeypatch):
+    """O limite de tentativas fica desligado nos testes; os testes dele o ligam."""
+    from app.config import settings
+    from app.services import limitador
+
+    monkeypatch.setattr(settings, "limite_credenciais_ativo", False)
+    limitador.limpar()
+
+
+@pytest.fixture(autouse=True)
+def pasta_uploads_isolada(tmp_path, monkeypatch):
+    """Direciona os uploads de cada teste para um diretório temporário descartado ao fim."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "uploads_dir", str(tmp_path / "uploads"))
+
+
 @pytest.fixture(autouse=True)
 def relogio_real():
-    """Garante que nenhum teste vaze um relógio fixado para o seguinte."""
+    """Garante que nenhum teste vaze um relógio fixado ou plano Pro em memória."""
+    from app.services.notificacoes import limpar_planos_pro
+
+    limpar_planos_pro()
     yield
+    limpar_planos_pro()
     restaurar_relogio()

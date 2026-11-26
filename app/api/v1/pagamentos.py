@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.v1.schemas.pagamentos import (
+    CheckinEntrada,
+    CheckinResposta,
     DivisaoValores,
     LancamentoResumo,
     PagamentoDetalhe,
@@ -24,6 +26,13 @@ router = APIRouter(tags=["pagamentos"])
 
 def contratante_ativo(
     usuario: Usuario = Depends(exige_perfil(TipoPerfil.CONTRATANTE)),
+    _: Usuario = Depends(exige_conta_ativa),
+) -> Usuario:
+    return usuario
+
+
+def profissional_ativo(
+    usuario: Usuario = Depends(exige_perfil(TipoPerfil.PROFISSIONAL)),
     _: Usuario = Depends(exige_conta_ativa),
 ) -> Usuario:
     return usuario
@@ -135,6 +144,7 @@ def abrir_cobranca(
     """Abre a cobrança Pix da vaga aceita. O valor fica retido até a conclusão do serviço."""
     vaga = _buscar_vaga(db, vaga_id)
     pagamentos.exigir_contratante_dono(db, vaga, usuario.id)
+    pagamentos.exigir_aceites_do_acordo(db, vaga)
     pagamento = pagamentos.criar_pagamento(db, vaga)
     return montar_detalhe(db, pagamento, vaga)
 
@@ -183,6 +193,30 @@ def confirmar_conclusao(
     vaga = _buscar_vaga(db, vaga_id)
     vaga = pagamentos.confirmar_conclusao(db, vaga, usuario.id)
     return montar_detalhe(db, _pagamento_obrigatorio(db, vaga), vaga)
+
+
+@router.post("/vagas/{vaga_id}/checkin", response_model=CheckinResposta)
+def fazer_checkin(
+    vaga_id: int,
+    entrada: CheckinEntrada,
+    usuario: Usuario = Depends(profissional_ativo),
+    db: Session = Depends(get_db),
+) -> CheckinResposta:
+    """O profissional contratado confirma a chegada ao local, dentro da janela e do raio."""
+    vaga = _buscar_vaga(db, vaga_id)
+    vaga, metros = pagamentos.registrar_checkin(
+        db,
+        vaga,
+        usuario.id,
+        entrada.latitude,
+        entrada.longitude,
+        simular_local=entrada.simular_local,
+    )
+    return CheckinResposta(
+        mensagem=f"Check-in confirmado a {round(metros)} m do local.",
+        distancia_metros=round(metros, 1),
+        checkin_em=como_utc(vaga.checkin_em),
+    )
 
 
 @router.post("/vagas/{vaga_id}/falta", response_model=PagamentoDetalhe)

@@ -20,6 +20,15 @@ class PerfilResumo(BaseModel):
     pro: bool = Field(description="Assinante do plano Pro.")
     nota_media: float | None = Field(default=None, description="Média das avaliações, de 1 a 5.")
     total_avaliacoes: int = 0
+    adicionais_pagos: int = Field(
+        default=0, description="Horas extras e bônus pagos (só contratantes)."
+    )
+    destaque: bool = Field(
+        default=False, description="Contratante com adicionais pagos; sem efeito no match."
+    )
+    cor_destaque: str | None = Field(
+        default=None, description="Cor de destaque escolhida pelo contratante."
+    )
 
 
 class VagaResumo(BaseModel):
@@ -81,6 +90,10 @@ class ConversaResumo(BaseModel):
     id: int
     vaga_id: int
     aberta: bool = Field(description="Falso quando a vaga foi cancelada ou encerrada.")
+    bloqueada: bool = Field(
+        default=False,
+        description="Verdadeiro quando uma denúncia procedente bloqueou o envio de mensagens.",
+    )
     outra_parte: PerfilResumo
     ultima_mensagem: MensagemResumo | None = None
     nao_lidas: int = 0

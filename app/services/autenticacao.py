@@ -54,6 +54,18 @@ def autenticar(db: Session, email: str, senha: str) -> Usuario:
     return usuario
 
 
+def verificar_credenciais(db: Session, email: str, senha: str) -> Usuario:
+    """Confere e-mail e senha sem barrar contas suspensas ou banidas (consulta e contestação)."""
+    usuario = db.scalar(select(Usuario).where(Usuario.email == _normalizar_email(email)))
+    hash_conferido = usuario.senha_hash if usuario is not None else _HASH_FICTICIO
+    senha_confere = verify_password(senha, hash_conferido)
+    if usuario is None or not senha_confere or usuario.excluida_em is not None:
+        raise erro_http(
+            status.HTTP_401_UNAUTHORIZED, "credenciais_invalidas", "E-mail ou senha inválidos."
+        )
+    return usuario
+
+
 def emitir_tokens(usuario: Usuario) -> ParDeTokens:
     return ParDeTokens(
         access_token=create_access_token(str(usuario.id)),

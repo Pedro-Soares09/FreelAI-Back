@@ -9,8 +9,12 @@ select = ["E", "F", "I", "B", "UP"]
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = [
     "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
     "fastapi.Query",
     "fastapi.Header",
+    "fastapi.File",
+    "fastapi.Form",
     "app.deps.exige_perfil",
 ]
 
