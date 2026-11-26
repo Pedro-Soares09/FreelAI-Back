@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,7 +13,7 @@ from app.db import get_db
 from app.deps import exige_admin
 from app.erros import erro_http
 from app.models import ContestacaoConta, EstadoConta, SancaoConta, Usuario
-from app.services import autenticacao, sancoes
+from app.services import autenticacao, limitador, sancoes
 from app.tempo import como_utc
 
 # Conta suspensa ou banida não recebe token; por isso a consulta e a contestação confirmam
@@ -55,16 +55,22 @@ def _usuario_por_credenciais(db: Session, entrada: LoginEntrada) -> Usuario:
 
 
 @router_conta.post("/sancao", response_model=SituacaoDaConta)
-def consultar_sancao(entrada: LoginEntrada, db: Session = Depends(get_db)) -> dict:
+def consultar_sancao(
+    entrada: LoginEntrada, request: Request, db: Session = Depends(get_db)
+) -> dict:
     """Situação da conta bloqueada: motivo, data de retorno e andamento da contestação."""
+    limitador.registrar_tentativa(db, request, entrada.email)
     return sancoes.situacao(db, _usuario_por_credenciais(db, entrada))
 
 
 @router_conta.post(
     "/contestacao", response_model=SituacaoDaConta, status_code=status.HTTP_201_CREATED
 )
-def contestar_sancao(entrada: ContestacaoEntrada, db: Session = Depends(get_db)) -> dict:
+def contestar_sancao(
+    entrada: ContestacaoEntrada, request: Request, db: Session = Depends(get_db)
+) -> dict:
     """Envia a contestação da sanção vigente (uma por caso, dentro do prazo)."""
+    limitador.registrar_tentativa(db, request, entrada.email)
     usuario = _usuario_por_credenciais(db, entrada)
     sancoes.contestar(db, usuario, entrada.texto)
     return sancoes.situacao(db, usuario)

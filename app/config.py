@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # Agendador das varreduras de prazo; 0 no intervalo usa o padrão do perfil (30 s demo, 60 s).
     varreduras_automaticas: bool = True
     varreduras_intervalo_s: int = 0
+    # Limite de tentativas nas rotas de login, registro e contestação; desligável em testes.
+    limite_credenciais_ativo: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

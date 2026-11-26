@@ -4927,6 +4927,17 @@
             "title": "Total Avaliacoes",
             "type": "integer"
           },
+          "usuario_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usuario Id"
+          },
           "valor_proposto": {
             "anyOf": [
               {

@@ -104,6 +104,7 @@ class AceiteResposta(BaseModel):
 
 class ProfissionalRecomendado(BaseModel):
     id: str
+    usuario_id: int | None = None
     nome: str
     foto_url: str | None = None
     verificado: bool

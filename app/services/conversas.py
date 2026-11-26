@@ -550,6 +550,15 @@ def registrar_mensagem(
         )
     anexo_limpo = anexo_url.strip() if anexo_url is not None else None
     anexo_limpo = anexo_limpo or None
+    if anexo_limpo is not None and not anexo_limpo.startswith(
+        f"/api/v1/conversas/{conversa.id}/anexos/"
+    ):
+        # Só anexos enviados por esta conversa; links externos furariam o bloqueio de contato.
+        raise erro_http(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "anexo_invalido",
+            "O anexo precisa ser enviado pelo próprio chat.",
+        )
     texto_limpo = _preparar_texto_e_bloquear_contato(db, conversa, vaga, autor, texto)
     if texto_limpo is None and anexo_limpo is None:
         raise erro_http(

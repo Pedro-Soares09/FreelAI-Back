@@ -543,9 +543,16 @@ def liberar_parcial(db: Session, pagamento: Pagamento, percentual: Decimal | int
 
 
 def estornar_integral(
-    db: Session, pagamento: Pagamento, *, estado_vaga: EstadoVaga = EstadoVaga.REEMBOLSADA
+    db: Session,
+    pagamento: Pagamento,
+    *,
+    estado_vaga: EstadoVaga = EstadoVaga.REEMBOLSADA,
+    commit: bool = True,
 ) -> Pagamento:
-    """Devolve todo o valor retido ao contratante. Nenhuma taxa é cobrada."""
+    """Devolve todo o valor retido ao contratante. Nenhuma taxa é cobrada.
+
+    Com `commit=False` só faz flush, para quem precisa gravar o estorno junto de outras mudanças.
+    """
     _travar(db, pagamento)
     if pagamento.estado == EstadoPagamento.ESTORNADO:
         return pagamento
@@ -569,8 +576,11 @@ def estornar_integral(
         motivo="pagamento_estornado",
     )
     _fechar_conversa(db, vaga.id)
-    db.commit()
-    db.refresh(pagamento)
+    if commit:
+        db.commit()
+        db.refresh(pagamento)
+    else:
+        db.flush()
     return pagamento
 
 

@@ -108,7 +108,8 @@ def _dados(db: Session, vaga: Vaga) -> DadosAcordo:
     liquido, taxa = pagamentos.calcular_divisao(Decimal(total), db=db)
     contrato = db.scalars(select(Contrato).where(Contrato.vaga_id == vaga.id)).first()
     aceitos = {a.perfil for a in contrato.aceites} if contrato else set()
-    atraso = _horas(configuracao.get("cancelamento_tardio_min", db=db))
+    # Mesma chave que a regra de cancelamento aplica (em horas), para o texto não divergir dela.
+    atraso = _horas(float(configuracao.get("cancelamento_tardio_horas", db=db)) * 60)
     prazo_avaliacao = _horas(configuracao.get("avaliacao_prazo_min", db=db))
     janela_conclusao = _horas(configuracao.get("confirmacao_conclusao_min", db=db))
 

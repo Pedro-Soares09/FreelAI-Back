@@ -312,3 +312,15 @@ def test_varredura_expira_convite_escolhido_vencido(cliente, db, contratante, ca
     assert db.get(Vaga, int(vaga["id"])).estado == EstadoVaga.PUBLICADA
     convites = cliente.get("/api/v1/profissional/convites", headers=cabecalho(profissional.usuario))
     assert convites.json() == []
+
+
+def test_top3_traz_o_usuario_id_de_cada_profissional(cliente, db, contratante, categoria):
+    """CT-TOP3-01: o front abre o perfil público do profissional pelo usuario_id."""
+    perfis = [criar_profissional(db, categorias=(categoria,)) for _ in range(3)]
+
+    _publicar(cliente, contratante, categoria)
+    top3 = cliente.get("/api/v1/contratante/top3", headers=cabecalho(contratante)).json()
+
+    recomendados = top3[0]["profissionais"]
+    assert {p["usuario_id"] for p in recomendados} == {perfil.usuario_id for perfil in perfis}
+    assert {p["id"] for p in recomendados} == {str(perfil.id) for perfil in perfis}

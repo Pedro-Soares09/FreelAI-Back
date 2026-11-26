@@ -184,8 +184,9 @@ def _vaga_para_front(
         data_inicio=como_utc(vaga.inicio_em),
         bairro=endereco.bairro,
         distancia_km=distancia,
-        latitude=endereco.latitude,
-        longitude=endereco.longitude,
+        # Quem não é parte da vaga vê o pino aproximado (2 casas decimais, cerca de 1 km).
+        latitude=endereco.latitude if parte else round(endereco.latitude, 2),
+        longitude=endereco.longitude if parte else round(endereco.longitude, 2),
         endereco_completo=completo,
         status=STATUS_VAGA[vaga.estado],
         contratante=_resumo_contratante(db, contratante),
@@ -541,6 +542,7 @@ def _recomendado(db: Session, convite: Convite, vaga: Vaga) -> ProfissionalRecom
     )
     return ProfissionalRecomendado(
         id=str(perfil.id),
+        usuario_id=perfil.usuario_id,
         nome=perfil.usuario.nome,
         foto_url=perfil.foto_url,
         verificado=perfil.verificado,
