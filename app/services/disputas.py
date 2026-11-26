@@ -190,7 +190,9 @@ def abrir_disputa(
     )
     from app.services import vagas as vagas_servico
 
-    vagas_servico.transicionar(vaga, vagas_servico.EventoVaga.ABRIR_DISPUTA, motivo="disputa_aberta")
+    vagas_servico.transicionar(
+        vaga, vagas_servico.EventoVaga.ABRIR_DISPUTA, motivo="disputa_aberta"
+    )
     db.add(disputa)
     try:
         db.commit()

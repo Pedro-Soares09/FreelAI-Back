@@ -1,9 +1,9 @@
-﻿"""Máquina de estados central e regras de ciclo de vida da vaga (US23 / FLX09)."""
+"""Máquina de estados central e regras de ciclo de vida da vaga (US23 / FLX09)."""
 
-from datetime import datetime, timedelta
-from enum import StrEnum
 import json
 import logging
+from datetime import datetime, timedelta
+from enum import StrEnum
 from typing import Any
 
 from fastapi import status
@@ -105,8 +105,10 @@ TRANSICOES_VAGA: dict[tuple[EstadoVaga, EventoVaga], EstadoVaga] = {
 }
 
 
-def calcular_prazo_publicacao(db: Session, inicio_em: datetime, referencia: datetime | None = None) -> datetime:
-    """Calcula o vencimento efetivo de uma vaga publicada: o que vier primeiro entre prazo/12h e inicio_em."""
+def calcular_prazo_publicacao(
+    db: Session, inicio_em: datetime, referencia: datetime | None = None
+) -> datetime:
+    """Vencimento efetivo de uma vaga publicada: o que vier primeiro entre o prazo e o início."""
     instante = como_utc(referencia or agora())
     minutos = configuracao.get("expiracao_vaga_min", db=db)
     limite_publicacao = instante + timedelta(minutes=minutos)
@@ -117,12 +119,16 @@ def calcular_prazo_publicacao(db: Session, inicio_em: datetime, referencia: date
 def calcular_vencimento_vaga_publicada(
     db: Session, vaga: Vaga, referencia: datetime | None = None
 ) -> datetime:
-    """Retorna o instante de expiração efetivo para uma vaga em PUBLICADA (prazo_em ou início_em, o que vier primeiro)."""
+    """Instante de expiração efetivo de uma vaga publicada (prazo_em ou início, o primeiro)."""
     inicio_utc = como_utc(vaga.inicio_em)
     if vaga.prazo_em is not None:
         return min(como_utc(vaga.prazo_em), inicio_utc)
     minutos = configuracao.get("expiracao_vaga_min", db=db)
-    base = como_utc(vaga.criado_em) if getattr(vaga, "criado_em", None) is not None else como_utc(referencia or agora())
+    base = (
+        como_utc(vaga.criado_em)
+        if getattr(vaga, "criado_em", None) is not None
+        else como_utc(referencia or agora())
+    )
     return min(base + timedelta(minutes=minutos), inicio_utc)
 
 
@@ -178,7 +184,7 @@ def transicionar(
         raise erro_http(
             status.HTTP_409_CONFLICT,
             "transicao_estado_invalida",
-            f"Transição inválida a partir do estado '{estado_atual.value}' com o evento '{evento_enum.value}'.",
+            f"Transição inválida: estado '{estado_atual.value}', evento '{evento_enum.value}'.",
             estado_atual=estado_atual.value,
             evento=evento_enum.value,
         )
@@ -197,11 +203,9 @@ def transicionar(
 
 @varredura("expiracao_vagas_publicadas")
 def expirar_vagas_publicadas(db: Session) -> int:
-    """Expira vagas em `publicada` quando `prazo_em` (ou 12h/perfil demo) ou `inicio_em` vencer (o que vier primeiro)."""
+    """Expira vagas publicadas quando o prazo ou o início vencer (o que vier primeiro)."""
     instante = agora()
-    candidatas = db.scalars(
-        select(Vaga).where(Vaga.estado == EstadoVaga.PUBLICADA)
-    ).all()
+    candidatas = db.scalars(select(Vaga).where(Vaga.estado == EstadoVaga.PUBLICADA)).all()
 
     expiradas = 0
     for vaga in candidatas:

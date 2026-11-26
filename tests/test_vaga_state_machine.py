@@ -1,7 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+
 import pytest
 from fastapi import HTTPException
+
 from app.models import (
     Categoria,
     Endereco,
@@ -21,7 +23,7 @@ from app.services import varreduras
 
 
 def _criar_dependencias(db):
-    agora_utc = datetime.now(timezone.utc)
+    agora_utc = datetime.now(UTC)
     usuario = Usuario(
         nome="Contratante Teste",
         email="contratante.us23@example.com",
@@ -61,8 +63,15 @@ def _criar_dependencias(db):
     return perfil_contratante.id, categoria.id, endereco.id
 
 
-def _nova_vaga(contratante_id, categoria_id, endereco_id, estado=EstadoVaga.PUBLICADA, inicio_em=None, prazo_em=None):
-    agora_utc = datetime.now(timezone.utc)
+def _nova_vaga(
+    contratante_id,
+    categoria_id,
+    endereco_id,
+    estado=EstadoVaga.PUBLICADA,
+    inicio_em=None,
+    prazo_em=None,
+):
+    agora_utc = datetime.now(UTC)
     inicio = inicio_em or (agora_utc + timedelta(hours=24))
     return Vaga(
         contratante_id=contratante_id,
@@ -101,7 +110,7 @@ def test_transicao_valida_e_bloqueio_invalida():
 
 
 def test_prazo_publicacao_flx09_respeita_12h_e_inicio_em(db):
-    referencia = datetime(2026, 11, 25, 12, 0, tzinfo=timezone.utc)
+    referencia = datetime(2026, 11, 25, 12, 0, tzinfo=UTC)
     inicio_distante = referencia + timedelta(hours=36)
     inicio_proximo = referencia + timedelta(hours=4)
 
@@ -114,13 +123,13 @@ def test_prazo_publicacao_flx09_respeita_12h_e_inicio_em(db):
 
 def test_varredura_expira_vaga_com_prazo_vencido(db):
     contratante_id, categoria_id, endereco_id = _criar_dependencias(db)
-    vencido = datetime.now(timezone.utc) - timedelta(minutes=10)
+    vencido = datetime.now(UTC) - timedelta(minutes=10)
     vaga = _nova_vaga(
         contratante_id,
         categoria_id,
         endereco_id,
         estado=EstadoVaga.PUBLICADA,
-        inicio_em=datetime.now(timezone.utc) + timedelta(hours=6),
+        inicio_em=datetime.now(UTC) + timedelta(hours=6),
         prazo_em=vencido,
     )
     db.add(vaga)

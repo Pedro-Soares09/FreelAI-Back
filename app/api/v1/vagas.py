@@ -40,7 +40,8 @@ from app.models import (
     Usuario,
     Vaga,
 )
-from app.services import bairros, comprovantes, configuracao, match, vagas as vagas_servico
+from app.services import bairros, comprovantes, configuracao, match
+from app.services import vagas as vagas_servico
 from app.services.geo import arredondar_km, distancia_km
 from app.tempo import agora, como_utc
 
@@ -467,7 +468,9 @@ def aceitar_convite(
     convite.estado = EstadoConvite.ACEITO
     vaga.profissional_id = perfil.id
     vaga.valor_fixado = convite.valor_proposto or vaga.valor_inicial
-    vagas_servico.transicionar(vaga, vagas_servico.EventoVaga.ACEITAR_CONVITE, motivo="convite_aceito")
+    vagas_servico.transicionar(
+        vaga, vagas_servico.EventoVaga.ACEITAR_CONVITE, motivo="convite_aceito"
+    )
     vaga.prazo_em = None
     for outro in db.scalars(
         select(Convite).where(
@@ -504,7 +507,9 @@ def recusar_convite(
     convite.estado = EstadoConvite.RECUSADO
     if foi_escolhido:
         vaga = db.get(Vaga, convite.vaga_id)
-        vagas_servico.transicionar(vaga, vagas_servico.EventoVaga.RECUSAR_CONVITE, motivo="convite_recusado")
+        vagas_servico.transicionar(
+            vaga, vagas_servico.EventoVaga.RECUSAR_CONVITE, motivo="convite_recusado"
+        )
         vaga.prazo_em = vagas_servico.calcular_prazo_publicacao(db, vaga.inicio_em)
     db.commit()
 
@@ -651,7 +656,9 @@ def escolher_profissional(
     prazo = agora() + timedelta(minutes=configuracao.get("janela_aceite_min", db=db))
     convite.estado = EstadoConvite.ESCOLHIDO
     convite.expira_em = prazo
-    vagas_servico.transicionar(vaga, vagas_servico.EventoVaga.INICIAR_CONTRATACAO, motivo="profissional_escolhido")
+    vagas_servico.transicionar(
+        vaga, vagas_servico.EventoVaga.INICIAR_CONTRATACAO, motivo="profissional_escolhido"
+    )
     vaga.prazo_em = prazo
     perfil = db.get(PerfilProfissional, convite.profissional_id)
     _notificar(db, perfil.usuario_id, "escolhido_convite", "Você foi escolhido", vaga)
