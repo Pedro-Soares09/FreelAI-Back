@@ -42,12 +42,16 @@ ESTADOS_COM_ACORDO = ESTADOS_ACEITAVEIS + (
 )
 
 
+# Mesma resposta para vaga sem acordo e para quem não é parte dela: não revela se a vaga existe.
+MSG_ACORDO_NAO_ENCONTRADO = "Acordo não encontrado, ou esta conta não participa dele."
+
+
 def _vaga_com_acordo(db: Session, vaga_id: int, usuario: Usuario) -> tuple[Vaga, TipoPerfil]:
     """Vaga que já tem profissional contratado e da qual o usuário é uma das partes."""
     vaga = db.get(Vaga, vaga_id)
     if vaga is None or vaga.profissional_id is None:
         raise erro_http(
-            status.HTTP_404_NOT_FOUND, "acordo_nao_encontrado", "Esta vaga ainda não tem acordo."
+            status.HTTP_404_NOT_FOUND, "acordo_nao_encontrado", MSG_ACORDO_NAO_ENCONTRADO
         )
     contratante = usuario.perfil_contratante
     profissional = usuario.perfil_profissional
@@ -57,7 +61,7 @@ def _vaga_com_acordo(db: Session, vaga_id: int, usuario: Usuario) -> tuple[Vaga,
         papel = TipoPerfil.PROFISSIONAL
     else:
         raise erro_http(
-            status.HTTP_404_NOT_FOUND, "acordo_nao_encontrado", "Esta vaga ainda não tem acordo."
+            status.HTTP_404_NOT_FOUND, "acordo_nao_encontrado", MSG_ACORDO_NAO_ENCONTRADO
         )
     if vaga.estado not in ESTADOS_COM_ACORDO:
         raise erro_http(

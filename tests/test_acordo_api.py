@@ -117,3 +117,18 @@ def test_acordo_continua_consultavel_em_disputa(cliente, db, cenario):
 
     assert consulta.status_code == 200
     assert aceite.status_code == 409
+
+
+def test_mensagem_do_estranho_nao_diz_que_a_vaga_nao_tem_acordo(cliente, db, cenario):
+    intruso = criar_usuario(
+        db, perfis=(TipoPerfil.CONTRATANTE,), perfil_ativo=TipoPerfil.CONTRATANTE, verificado=True
+    )
+
+    resposta = cliente.get(_url(cenario), headers=cabecalho(intruso))
+    inexistente = cliente.get("/api/v1/vagas/999999/acordo", headers=cabecalho(intruso))
+
+    assert resposta.status_code == 404
+    mensagem = resposta.json()["detail"]["mensagem"]
+    assert "ainda não tem acordo" not in mensagem
+    # A mesma resposta vale para vaga inexistente: nada revela se a vaga existe.
+    assert inexistente.json()["detail"] == resposta.json()["detail"]
