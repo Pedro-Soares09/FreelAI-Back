@@ -7582,11 +7582,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Listar Categorias",
         "tags": [
           "vagas"
