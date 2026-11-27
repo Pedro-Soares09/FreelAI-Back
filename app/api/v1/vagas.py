@@ -211,9 +211,7 @@ def _vaga_obrigatoria(db: Session, vaga_id: int) -> Vaga:
 
 
 @router.get("/categorias", response_model=list[CategoriaResumo])
-def listar_categorias(
-    _: Usuario = Depends(usuario_atual), db: Session = Depends(get_db)
-) -> list[CategoriaResumo]:
+def listar_categorias(db: Session = Depends(get_db)) -> list[CategoriaResumo]:
     """Categorias de serviço disponíveis para publicar uma vaga."""
     categorias = db.scalars(select(Categoria).order_by(Categoria.nome)).all()
     return [
