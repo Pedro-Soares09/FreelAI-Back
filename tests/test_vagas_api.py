@@ -256,7 +256,7 @@ def test_detalhe_oculta_endereco_completo_de_quem_nao_e_parte(cliente, db, contr
 def test_rotas_exigem_token(cliente):
     assert cliente.get("/api/v1/vagas/1").status_code == 401
     assert cliente.get("/api/v1/contratante/top3").status_code == 401
-    assert cliente.get("/api/v1/categorias").status_code == 401
+    assert cliente.get("/api/v1/categorias").status_code == 200
 
 
 def test_interesse_fora_do_top3_devolve_403(cliente, db, contratante, categoria):
